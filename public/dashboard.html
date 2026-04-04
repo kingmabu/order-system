@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理ダッシュボード</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif; background: #f5f5f5; }
+  .header { background: white; padding: 16px 24px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+  .status-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .status-card { background: white; border-radius: 12px; padding: 16px; }
+  .status-card .label { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .status-card .value { font-size: 22px; font-weight: 600; color: #1a1a1a; }
+  .status-card .badge { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 20px; margin-top: 6px; }
+  .badge-ok { background: #e8f5e9; color: #1b5e20; }
+  .badge-ng { background: #fce8e8; color: #7f1d1d; }
+  .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; }
+  .btn-green { background: #1D9E75; color: white; }
+  .btn-green:hover { background: #178a64; }
+  .btn-outline { background: white; color: #1D9E75; border: 1px solid #1D9E75; }
+  .qr-box { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px; background: #f9f9f9; border-radius: 12px; }
+  #qrcode { width: 160px; height: 160px; }
+  .scan-url { font-size: 13px; color: #1D9E75; word-break: break-all; text-align: center; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>発注書システム — 管理画面</h1>
+  <button class="btn btn-outline" onclick="location.href='/auth/connect'">QBO 再接続</button>
+</div>
+<div class="container">
+  <div class="status-cards">
+    <div class="status-card">
+      <div class="label">QBO 接続状態</div>
+      <div class="value" id="qbo-status">確認中...</div>
+      <div class="badge" id="qbo-badge">—</div>
+    </div>
+    <div class="status-card">
+      <div class="label">顧客スキャンURL</div>
+      <div class="value" style="font-size:14px; word-break:break-all;" id="scan-url">—</div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>QBO に接続する</h2>
+    <p style="font-size:14px; color:#555; margin-bottom:14px; line-height:1.6">
+      以下のボタンをクリックするとQBOのログイン画面に移動します。<br>
+      ログイン後、自動的にこのダッシュボードに戻ります。
+    </p>
+    <button class="btn btn-green" onclick="location.href='/auth/connect'">QuickBooks に接続する</button>
+  </div>
+  <div class="card">
+    <h2>顧客向けQRコード</h2>
+    <div class="qr-box">
+      <canvas id="qrcode"></canvas>
+      <div class="scan-url" id="qr-url-text">—</div>
+      <button class="btn btn-outline" onclick="window.open(document.getElementById('qr-url-text').textContent)">スキャン画面を開く</button>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const baseUrl = location.origin;
+const scanUrl = baseUrl + '/scan';
+document.getElementById('scan-url').textContent = scanUrl;
+document.getElementById('qr-url-text').textContent = scanUrl;
+new QRCode(document.getElementById('qrcode'), {
+  text: scanUrl, width: 160, height: 160,
+  colorDark: '#1a1a1a', colorLight: '#ffffff'
+});
+async function checkStatus() {
+  try {
+    const res = await fetch('/auth/status');
+    const json = await res.json();
+    const el = document.getElementById('qbo-status');
+    const badge = document.getElementById('qbo-badge');
+    if (json.connected) {
+      el.textContent = '接続済み';
+      badge.textContent = 'RealmID: ' + json.realmId;
+      badge.className = 'badge badge-ok';
+    } else {
+      el.textContent = '未接続';
+      badge.textContent = '接続が必要です';
+      badge.className = 'badge badge-ng';
+    }
+  } catch(e) { document.getElementById('qbo-status').textContent = 'エラー'; }
+}
+checkStatus();
+</script>
+</body>
+</html>
