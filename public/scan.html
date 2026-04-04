@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>発注書を送信</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif; background: #f5f5f5; min-height: 100vh; }
+  .container { max-width: 480px; margin: 0 auto; padding: 24px 16px; }
+  .header { text-align: center; margin-bottom: 28px; }
+  .header h1 { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px; }
+  .header p { font-size: 14px; color: #666; line-height: 1.6; }
+  .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .upload-zone { border: 2px dashed #c8e6c9; border-radius: 12px; padding: 36px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: #f9fffe; }
+  .upload-zone:hover { border-color: #1D9E75; background: #e8f5e9; }
+  .upload-zone .icon { width: 56px; height: 56px; background: #e8f5e9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+  .upload-zone .icon svg { width: 28px; height: 28px; stroke: #1D9E75; fill: none; stroke-width: 1.5; }
+  .upload-zone h2 { font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px; }
+  .upload-zone p { font-size: 13px; color: #888; }
+  input[type=file] { display: none; }
+  .preview { display: none; margin-top: 12px; }
+  .preview img { width: 100%; border-radius: 8px; max-height: 240px; object-fit: cover; }
+  .btn { width: 100%; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+  .btn-primary { background: #1D9E75; color: white; }
+  .btn-primary:hover { background: #178a64; }
+  .btn-primary:disabled { background: #a5d6c5; cursor: not-allowed; }
+  .btn-secondary { background: #f0f0f0; color: #555; margin-top: 10px; }
+  .status { display: none; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-top: 12px; }
+  .status.loading { background: #fff8e1; color: #856404; display: flex; }
+  .status.success { background: #e8f5e9; color: #1b5e20; display: flex; }
+  .status.error { background: #fce8e8; color: #7f1d1d; display: flex; }
+  .spinner { width: 18px; height: 18px; border: 2px solid #f3c64a; border-top-color: #856404; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .result-card { display: none; background: white; border-radius: 16px; padding: 20px; margin-top: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .result-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; color: #1a1a1a; }
+  .field { margin-bottom: 10px; }
+  .field label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 3px; }
+  .field input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: #888; padding: 6px 4px; border-bottom: 1px solid #eee; }
+  td { padding: 8px 4px; border-bottom: 1px solid #f5f5f5; color: #1a1a1a; }
+  td input { width: 100%; border: none; font-size: 13px; background: transparent; padding: 0; }
+  .total { display: flex; justify-content: space-between; padding: 12px 4px 0; font-weight: 600; font-size: 15px; border-top: 1px solid #eee; margin-top: 4px; }
+  .success-screen { display: none; text-align: center; padding: 40px 20px; }
+  .success-screen .check { width: 72px; height: 72px; background: #e8f5e9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+  .success-screen .check svg { width: 36px; height: 36px; stroke: #1D9E75; fill: none; stroke-width: 2.5; }
+  .success-screen h2 { font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+  .success-screen p { font-size: 14px; color: #666; }
+  .invoice-num { font-size: 13px; color: #1D9E75; font-weight: 600; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="main-screen">
+    <div class="header">
+      <h1>発注書を送信</h1>
+      <p>発注書の写真を撮って送信してください。<br>自動でインボイスが作成されます。</p>
+    </div>
+    <div class="card">
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+        <h2>タップして撮影 / 選択</h2>
+        <p>発注書全体が写るように撮影してください</p>
+        <div class="preview" id="preview">
+          <img id="previewImg" alt="プレビュー"/>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" capture="environment" onchange="handleFile(event)">
+      <div class="status" id="status">
+        <div class="spinner" id="spinner"></div>
+        <span id="statusText"></span>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="analyze()" disabled>この写真で解析する</button>
+    <div class="result-card" id="resultCard">
+      <h3>内容を確認してください</h3>
+      <div class="field">
+        <label>顧客名</label>
+        <input type="text" id="customerName"/>
+      </div>
+      <div class="field">
+        <label>発注書番号</label>
+        <input type="text" id="poNumber"/>
+      </div>
+      <table>
+        <thead><tr><th>品名</th><th style="width:50px;text-align:center">数量</th><th style="width:80px;text-align:right">単価</th></tr></thead>
+        <tbody id="itemsBody"></tbody>
+      </table>
+      <div class="total">
+        <span>合計</span>
+        <span id="totalAmount"></span>
+      </div>
+      <button class="btn btn-primary" style="margin-top:16px" onclick="submit()">送信してインボイスを作成</button>
+      <button class="btn btn-secondary" onclick="reset()">撮り直す</button>
+    </div>
+  </div>
+  <div class="success-screen" id="successScreen">
+    <div class="check">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h2>送信完了しました</h2>
+    <p>インボイスが自動作成されました。</p>
+    <div class="invoice-num" id="invoiceNum"></div>
+    <button class="btn btn-secondary" style="margin-top:24px" onclick="reset()">新しい発注書を送る</button>
+  </div>
+</div>
+<script>
+let selectedFile = null;
+let extractedData = null;
+function handleFile(e) {
+  selectedFile = e.target.files[0];
+  if (!selectedFile) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('previewImg').src = ev.target.result;
+    document.getElementById('preview').style.display = 'block';
+    document.getElementById('analyzeBtn').disabled = false;
+  };
+  reader.readAsDataURL(selectedFile);
+}
+async function analyze() {
+  if (!selectedFile) return;
+  showStatus('loading', 'AI が発注書を解析しています...');
+  document.getElementById('analyzeBtn').disabled = true;
+  const formData = new FormData();
+  formData.append('image', selectedFile);
+  try {
+    const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+    extractedData = json.data;
+    showResult(extractedData);
+    showStatus('success', '解析完了！内容を確認してください。');
+  } catch (err) {
+    showStatus('error', '解析失敗: ' + err.message);
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+}
+function showResult(data) {
+  document.getElementById('customerName').value = data.customer_name || '';
+  document.getElementById('poNumber').value = data.po_number || '';
+  const tbody = document.getElementById('itemsBody');
+  tbody.innerHTML = '';
+  let total = 0;
+  (data.items || []).forEach((item, i) => {
+    const subtotal = item.quantity * item.unit_price;
+    total += subtotal;
+    tbody.innerHTML += `<tr>
+      <td><input value="${item.name}" onchange="updateItem(${i},'name',this.value)"/></td>
+      <td style="text-align:center"><input value="${item.quantity}" style="text-align:center;width:40px" onchange="updateItem(${i},'quantity',+this.value)"/></td>
+      <td style="text-align:right"><input value="${item.unit_price.toLocaleString()}" style="text-align:right" onchange="updateItem(${i},'unit_price',+this.value.replace(/,/g,''))"/></td>
+    </tr>`;
+  });
+  document.getElementById('totalAmount').textContent = '¥' + total.toLocaleString();
+  document.getElementById('resultCard').style.display = 'block';
+}
+function updateItem(index, field, value) {
+  extractedData.items[index][field] = value;
+  const total = extractedData.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  document.getElementById('totalAmount').textContent = '¥' + total.toLocaleString();
+}
+async function submit() {
+  extractedData.customer_name = document.getElementById('customerName').value;
+  extractedData.po_number = document.getElementById('poNumber').value;
+  showStatus('loading', 'Google Sheets に保存中...');
+  try {
+    const sheetsRes = await fetch('/api/save-to-sheets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: extractedData })
+    });
+    const sheetsJson = await sheetsRes.json();
+    if (!sheetsJson.success) throw new Error(sheetsJson.error);
+    showStatus('loading', 'QBO にインボイスを作成中...');
+    const tokenRes = await fetch('/auth/token');
+    const tokenJson = await tokenRes.json();
+    if (!tokenJson.accessToken) throw new Error('QBO未接続');
+    const invoiceRes = await fetch('/api/create-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: extractedData, accessToken: tokenJson.accessToken, realmId: tokenJson.realmId })
+    });
+    const invoiceJson = await invoiceRes.json();
+    if (!invoiceJson.success) throw new Error(invoiceJson.error);
+    document.getElementById('invoiceNum').textContent = 'インボイス番号: #' + invoiceJson.invoiceNumber;
+    document.getElementById('main-screen').style.display = 'none';
+    document.getElementById('successScreen').style.display = 'block';
+  } catch (err) {
+    showStatus('error', '送信失敗: ' + err.message);
+  }
+}
+function showStatus(type, msg) {
+  const el = document.getElementById('status');
+  const spinner = document.getElementById('spinner');
+  el.className = 'status ' + type;
+  el.style.display = 'flex';
+  document.getElementById('statusText').textContent = msg;
+  spinner.style.display = type === 'loading' ? 'block' : 'none';
+}
+function reset() {
+  selectedFile = null; extractedData = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('preview').style.display = 'none';
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('status').style.display = 'none';
+  document.getElementById('main-screen').style.display = 'block';
+  document.getElementById('successScreen').style.display = 'none';
+}
+</script>
+</body>
+</html>
