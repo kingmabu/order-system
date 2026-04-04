@@ -53,14 +53,15 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
 必ずJSON形式のみで返答し、他のテキストは含めないでください。
 
 {
-  "customer_name": "顧客名",
+  "customer_name": "顧客名またはRestaurant Name",
   "order_date": "注文日(YYYY-MM-DD形式、不明な場合は今日の日付)",
-  "po_number": "発注書番号(あれば)",
+  "po_number": "発注書番号(あれば、なければ空文字)",
   "items": [
     {
+      "sku": "SKU(左端のアルファベット1文字+数字3桁、例:B002)",
       "name": "商品名",
-      "quantity": 数量(数値),
-      "unit_price": 単価(数値)
+      "quantity": 数量(数値、空欄または未記入の場合は0),
+      "unit_price": 0
     }
   ]
 }`
