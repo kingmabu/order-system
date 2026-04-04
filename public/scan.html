@@ -146,12 +146,14 @@ function showResult(data) {
   tbody.innerHTML = '';
   let total = 0;
   (data.items || []).forEach((item, i) => {
-    const subtotal = item.quantity * item.unit_price;
+    const qty = item.quantity || 0;
+    const price = item.unit_price || 0;
+    const subtotal = qty * price;
     total += subtotal;
     tbody.innerHTML += `<tr>
-      <td><input value="${item.name}" onchange="updateItem(${i},'name',this.value)"/></td>
-      <td style="text-align:center"><input value="${item.quantity}" style="text-align:center;width:40px" onchange="updateItem(${i},'quantity',+this.value)"/></td>
-      <td style="text-align:right"><input value="${item.unit_price.toLocaleString()}" style="text-align:right" onchange="updateItem(${i},'unit_price',+this.value.replace(/,/g,''))"/></td>
+      <td><input value="${item.name || ''}" onchange="updateItem(${i},'name',this.value)"/></td>
+      <td style="text-align:center"><input value="${qty}" style="text-align:center;width:40px" onchange="updateItem(${i},'quantity',+this.value)"/></td>
+      <td style="text-align:right"><input value="${price.toLocaleString()}" style="text-align:right" onchange="updateItem(${i},'unit_price',+this.value.replace(/,/g,''))"/></td>
     </tr>`;
   });
   document.getElementById('totalAmount').textContent = '¥' + total.toLocaleString();
