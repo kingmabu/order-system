@@ -82,8 +82,8 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     const text = response.data.content[0].text;
     const cleaned = text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(cleaned);
-
-    res.json({ success: true, data: parsed });
+console.log('AI解析結果:', JSON.stringify(parsed, null, 2));
+res.json({ success: true, data: parsed });
   } catch (err) {
     console.error('AI解析エラー:', err.message);
     res.status(500).json({ error: 'AI解析に失敗しました: ' + err.message });
