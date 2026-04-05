@@ -14,6 +14,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use('/auth', QBOAuth);
 
+const imageStore = new Map();
+
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -22,7 +24,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-async function sendNoteAlert(customerName, deliveryDate, noteItems) {
+async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer, imageMimeType) {
   const itemList = noteItems.map(item =>
     `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`
   ).join('\n');
@@ -30,7 +32,12 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems) {
     from: process.env.GMAIL_USER,
     to: process.env.GMAIL_USER,
     subject: `⚠️ Order Note Alert — ${customerName}`,
-    text: `A note was included with the following order:\n\nCustomer: ${customerName}\nDelivery Date: ${deliveryDate}\n\nItems with notes:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`
+    text: `A note was included with the following order:\n\nCustomer: ${customerName}\nDelivery Date: ${deliveryDate}\n\nItems with notes:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`,
+    attachments: imageBuffer ? [{
+      filename: `order-${customerName}-${deliveryDate}.jpg`,
+      content: imageBuffer,
+      contentType: imageMimeType || 'image/jpeg'
+    }] : []
   };
   await transporter.sendMail(mailOptions);
   console.log('Note alert sent for:', customerName);
@@ -109,6 +116,12 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     const parsed = JSON.parse(cleaned);
     console.log('AI解析結果:', JSON.stringify(parsed, null, 2));
     parsed.items = (parsed.items || []).filter(item => Number(item.quantity) > 0);
+
+    const orderKey = `${Date.now()}`;
+    imageStore.set(orderKey, { buffer: req.file.buffer, mimeType: req.file.mimetype });
+    setTimeout(() => imageStore.delete(orderKey), 30 * 60 * 1000);
+    parsed.orderKey = orderKey;
+
     res.json({ success: true, data: parsed });
   } catch (err) {
     console.error('AI解析エラー:', err.message);
@@ -132,12 +145,15 @@ app.post('/api/save-to-sheets', async (req, res) => {
       valueInputOption: 'USER_ENTERED',
       resource: { values: rows }
     });
+
     const noteItems = data.items.filter(item => item.note && item.note.trim() !== '');
     if (noteItems.length > 0) {
-      sendNoteAlert(data.customer_name, deliveryDate, noteItems).catch(err =>
+      const stored = data.orderKey ? imageStore.get(data.orderKey) : null;
+      sendNoteAlert(data.customer_name, deliveryDate, noteItems, stored?.buffer, stored?.mimeType).catch(err =>
         console.error('Note alert error:', err.message)
       );
     }
+
     res.json({ success: true, rows: rows.length });
   } catch (err) {
     console.error('Sheets書き込みエラー:', err.message);
