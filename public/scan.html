@@ -230,6 +230,8 @@ function showResult(data) {
 
 async function submitOrder() {
   showStatus('loading', 'Saving to Google Sheets...');
+ const submitBtn = document.querySelector('.btn-primary[onclick="submitOrder()"]');
+  if (submitBtn) submitBtn.disabled = true;
   try {
     const sheetsRes = await fetch('/api/save-to-sheets', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
