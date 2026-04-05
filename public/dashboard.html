@@ -28,25 +28,20 @@
   .btn-outline { background: white; color: #1D9E75; border: 1px solid #1D9E75; }
   .tab-content { display: none; }
   .tab-content.active { display: block; }
-
-  /* QR Generator */
   .search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
   .search-bar input { flex: 1; padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
   .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
   .qr-card { background: white; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
   .qr-card .cid { font-size: 11px; color: #888; margin-bottom: 4px; }
   .qr-card .name { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; line-height: 1.4; }
-  .qr-card canvas { display: block; margin: 0 auto 10px; }
-  .qr-card .url { font-size: 10px; color: #aaa; word-break: break-all; margin-bottom: 10px; }
+  .qr-card img { display: block; margin: 0 auto 10px; width: 140px; height: 140px; }
   .qr-card .print-btn { width: 100%; padding: 7px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #1D9E75; background: white; color: #1D9E75; }
   .qr-card .print-btn:hover { background: #e8f5e9; }
   .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
-  .print-area { display: none; }
-
   @media print {
     body * { visibility: hidden; }
-    .print-area, .print-area * { visibility: visible; }
-    .print-area { display: block; position: fixed; top: 0; left: 0; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { display: block !important; position: fixed; top: 0; left: 0; width: 100%; }
   }
 </style>
 </head>
@@ -61,7 +56,6 @@
   <div class="tab" onclick="switchTab('qr')">Customer QR Codes</div>
 </div>
 
-<!-- Dashboard Tab -->
 <div class="tab-content active" id="tab-dashboard">
   <div class="container">
     <div class="status-cards">
@@ -86,7 +80,6 @@
   </div>
 </div>
 
-<!-- QR Codes Tab -->
 <div class="tab-content" id="tab-qr">
   <div class="container">
     <div class="card">
@@ -102,9 +95,8 @@
   </div>
 </div>
 
-<div class="print-area" id="printArea"></div>
+<div id="printArea" style="display:none"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
 const BASE_URL = location.origin;
 let allCustomers = [];
@@ -116,6 +108,10 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'qr' && allCustomers.length === 0) loadCustomers();
+}
+
+function getQRUrl(text) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(text)}`;
 }
 
 async function loadCustomers() {
@@ -140,23 +136,16 @@ function renderCards(customers) {
   grid.innerHTML = '';
   customers.forEach(c => {
     const url = `${BASE_URL}/scan?cid=${encodeURIComponent(c.id)}`;
+    const qrImgUrl = getQRUrl(url);
     const div = document.createElement('div');
     div.className = 'qr-card';
-    div.dataset.name = c.name.toLowerCase();
-    div.dataset.id = c.id.toLowerCase();
     div.innerHTML = `
       <div class="cid">ID: ${c.id}</div>
       <div class="name">${c.name}</div>
-      <canvas id="qr-${c.id}"></canvas>
-      <div class="url">${url}</div>
-      <button class="print-btn" onclick="printQR('${c.id}', '${c.name.replace(/'/g,"\\'")}', '${url}')">Print QR</button>
+      <img src="${qrImgUrl}" alt="QR Code" loading="lazy"/>
+      <button class="print-btn" onclick="printQR('${c.id}', \`${c.name.replace(/`/g,'\\`')}\`, '${url}', '${qrImgUrl}')">Print QR</button>
     `;
     grid.appendChild(div);
-
-    new QRCode(document.getElementById(`qr-${c.id}`), {
-      text: url, width: 140, height: 140,
-      colorDark: '#1a1a1a', colorLight: '#ffffff'
-    });
   });
 }
 
@@ -168,20 +157,20 @@ function filterCards() {
   renderCards(filtered);
 }
 
-function printQR(id, name, url) {
-  const canvas = document.getElementById(`qr-${id}`);
-  const imgData = canvas.toDataURL();
+function printQR(id, name, url, qrImgUrl) {
   const printArea = document.getElementById('printArea');
+  printArea.style.display = 'block';
   printArea.innerHTML = `
     <div style="text-align:center; padding:40px; font-family:Arial,sans-serif;">
       <h2 style="font-size:18px; margin-bottom:4px;">${name}</h2>
       <p style="font-size:12px; color:#888; margin-bottom:20px;">Customer ID: ${id}</p>
-      <img src="${imgData}" style="width:200px;height:200px;display:block;margin:0 auto 16px;"/>
+      <img src="${qrImgUrl}" style="width:200px;height:200px;display:block;margin:0 auto 16px;"/>
       <p style="font-size:11px; color:#aaa;">${url}</p>
       <p style="font-size:13px; font-weight:bold; color:#1D9E75; margin-top:12px;">Snap. Scan. Done.</p>
     </div>
   `;
   window.print();
+  setTimeout(() => { printArea.style.display = 'none'; }, 1000);
 }
 
 async function checkStatus() {
