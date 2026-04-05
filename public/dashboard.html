@@ -1,20 +1,23 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>管理ダッシュボード</title>
+<title>Admin Dashboard</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif; background: #f5f5f5; }
   .header { background: white; padding: 16px 24px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
   .header h1 { font-size: 18px; font-weight: 600; }
-  .container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid #eee; background: white; padding: 0 24px; }
+  .tab { padding: 12px 20px; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; color: #888; }
+  .tab.active { border-bottom-color: #1D9E75; color: #1D9E75; font-weight: 600; }
+  .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
   .status-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
   .status-card { background: white; border-radius: 12px; padding: 16px; }
   .status-card .label { font-size: 12px; color: #888; margin-bottom: 4px; }
-  .status-card .value { font-size: 22px; font-weight: 600; color: #1a1a1a; }
-  .status-card .badge { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 20px; margin-top: 6px; }
+  .status-card .value { font-size: 20px; font-weight: 600; color: #1a1a1a; }
+  .badge { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 20px; margin-top: 6px; }
   .badge-ok { background: #e8f5e9; color: #1b5e20; }
   .badge-ng { background: #fce8e8; color: #7f1d1d; }
   .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
@@ -23,71 +26,183 @@
   .btn-green { background: #1D9E75; color: white; }
   .btn-green:hover { background: #178a64; }
   .btn-outline { background: white; color: #1D9E75; border: 1px solid #1D9E75; }
-  .qr-box { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px; background: #f9f9f9; border-radius: 12px; }
-  #qrcode { width: 160px; height: 160px; }
-  .scan-url { font-size: 13px; color: #1D9E75; word-break: break-all; text-align: center; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* QR Generator */
+  .search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+  .search-bar input { flex: 1; padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
+  .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+  .qr-card { background: white; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .qr-card .cid { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .qr-card .name { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; line-height: 1.4; }
+  .qr-card canvas { display: block; margin: 0 auto 10px; }
+  .qr-card .url { font-size: 10px; color: #aaa; word-break: break-all; margin-bottom: 10px; }
+  .qr-card .print-btn { width: 100%; padding: 7px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #1D9E75; background: white; color: #1D9E75; }
+  .qr-card .print-btn:hover { background: #e8f5e9; }
+  .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+  .print-area { display: none; }
+
+  @media print {
+    body * { visibility: hidden; }
+    .print-area, .print-area * { visibility: visible; }
+    .print-area { display: block; position: fixed; top: 0; left: 0; }
+  }
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>発注書システム — 管理画面</h1>
-  <button class="btn btn-outline" onclick="location.href='/auth/connect'">QBO 再接続</button>
+  <h1>Order System — Admin</h1>
+  <button class="btn btn-outline" onclick="location.href='/auth/connect'">Reconnect QBO</button>
 </div>
-<div class="container">
-  <div class="status-cards">
-    <div class="status-card">
-      <div class="label">QBO 接続状態</div>
-      <div class="value" id="qbo-status">確認中...</div>
-      <div class="badge" id="qbo-badge">—</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('dashboard')">Dashboard</div>
+  <div class="tab" onclick="switchTab('qr')">Customer QR Codes</div>
+</div>
+
+<!-- Dashboard Tab -->
+<div class="tab-content active" id="tab-dashboard">
+  <div class="container">
+    <div class="status-cards">
+      <div class="status-card">
+        <div class="label">QBO Connection</div>
+        <div class="value" id="qbo-status">Checking...</div>
+        <div class="badge" id="qbo-badge">—</div>
+      </div>
+      <div class="status-card">
+        <div class="label">Customer Scan URL</div>
+        <div class="value" style="font-size:13px;" id="scan-url">—</div>
+      </div>
     </div>
-    <div class="status-card">
-      <div class="label">顧客スキャンURL</div>
-      <div class="value" style="font-size:14px; word-break:break-all;" id="scan-url">—</div>
-    </div>
-  </div>
-  <div class="card">
-    <h2>QBO に接続する</h2>
-    <p style="font-size:14px; color:#555; margin-bottom:14px; line-height:1.6">
-      以下のボタンをクリックするとQBOのログイン画面に移動します。<br>
-      ログイン後、自動的にこのダッシュボードに戻ります。
-    </p>
-    <button class="btn btn-green" onclick="location.href='/auth/connect'">QuickBooks に接続する</button>
-  </div>
-  <div class="card">
-    <h2>顧客向けQRコード</h2>
-    <div class="qr-box">
-      <canvas id="qrcode"></canvas>
-      <div class="scan-url" id="qr-url-text">—</div>
-      <button class="btn btn-outline" onclick="window.open(document.getElementById('qr-url-text').textContent)">スキャン画面を開く</button>
+    <div class="card">
+      <h2>Connect to QuickBooks</h2>
+      <p style="font-size:14px; color:#555; margin-bottom:14px; line-height:1.6">
+        Click the button below to connect to QuickBooks Online.<br>
+        You will be redirected back here after login.
+      </p>
+      <button class="btn btn-green" onclick="location.href='/auth/connect'">Connect to QuickBooks</button>
     </div>
   </div>
 </div>
+
+<!-- QR Codes Tab -->
+<div class="tab-content" id="tab-qr">
+  <div class="container">
+    <div class="card">
+      <h2>Customer QR Codes</h2>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search by name or ID..." oninput="filterCards()"/>
+        <button class="btn btn-green" onclick="loadCustomers()">Reload</button>
+      </div>
+      <div id="qrGrid" class="qr-grid">
+        <div class="loading">Loading customers...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="print-area" id="printArea"></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-const baseUrl = location.origin;
-const scanUrl = baseUrl + '/scan';
-document.getElementById('scan-url').textContent = scanUrl;
-document.getElementById('qr-url-text').textContent = scanUrl;
-new QRCode(document.getElementById('qrcode'), {
-  text: scanUrl, width: 160, height: 160,
-  colorDark: '#1a1a1a', colorLight: '#ffffff'
-});
+const BASE_URL = location.origin;
+let allCustomers = [];
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['dashboard','qr'][i] === tab);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'qr' && allCustomers.length === 0) loadCustomers();
+}
+
+async function loadCustomers() {
+  document.getElementById('qrGrid').innerHTML = '<div class="loading">Loading customers...</div>';
+  try {
+    const res = await fetch('/api/customers');
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+    allCustomers = json.customers;
+    renderCards(allCustomers);
+  } catch (err) {
+    document.getElementById('qrGrid').innerHTML = `<div class="loading" style="color:#c62828">Error: ${err.message}</div>`;
+  }
+}
+
+function renderCards(customers) {
+  const grid = document.getElementById('qrGrid');
+  if (customers.length === 0) {
+    grid.innerHTML = '<div class="loading">No customers found</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  customers.forEach(c => {
+    const url = `${BASE_URL}/scan?cid=${encodeURIComponent(c.id)}`;
+    const div = document.createElement('div');
+    div.className = 'qr-card';
+    div.dataset.name = c.name.toLowerCase();
+    div.dataset.id = c.id.toLowerCase();
+    div.innerHTML = `
+      <div class="cid">ID: ${c.id}</div>
+      <div class="name">${c.name}</div>
+      <canvas id="qr-${c.id}"></canvas>
+      <div class="url">${url}</div>
+      <button class="print-btn" onclick="printQR('${c.id}', '${c.name.replace(/'/g,"\\'")}', '${url}')">Print QR</button>
+    `;
+    grid.appendChild(div);
+
+    new QRCode(document.getElementById(`qr-${c.id}`), {
+      text: url, width: 140, height: 140,
+      colorDark: '#1a1a1a', colorLight: '#ffffff'
+    });
+  });
+}
+
+function filterCards() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = allCustomers.filter(c =>
+    c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)
+  );
+  renderCards(filtered);
+}
+
+function printQR(id, name, url) {
+  const canvas = document.getElementById(`qr-${id}`);
+  const imgData = canvas.toDataURL();
+  const printArea = document.getElementById('printArea');
+  printArea.innerHTML = `
+    <div style="text-align:center; padding:40px; font-family:Arial,sans-serif;">
+      <h2 style="font-size:18px; margin-bottom:4px;">${name}</h2>
+      <p style="font-size:12px; color:#888; margin-bottom:20px;">Customer ID: ${id}</p>
+      <img src="${imgData}" style="width:200px;height:200px;display:block;margin:0 auto 16px;"/>
+      <p style="font-size:11px; color:#aaa;">${url}</p>
+      <p style="font-size:13px; font-weight:bold; color:#1D9E75; margin-top:12px;">Snap. Scan. Done.</p>
+    </div>
+  `;
+  window.print();
+}
+
 async function checkStatus() {
+  document.getElementById('scan-url').textContent = BASE_URL + '/scan';
   try {
     const res = await fetch('/auth/status');
     const json = await res.json();
     const el = document.getElementById('qbo-status');
     const badge = document.getElementById('qbo-badge');
     if (json.connected) {
-      el.textContent = '接続済み';
+      el.textContent = 'Connected';
       badge.textContent = 'RealmID: ' + json.realmId;
       badge.className = 'badge badge-ok';
     } else {
-      el.textContent = '未接続';
-      badge.textContent = '接続が必要です';
+      el.textContent = 'Not connected';
+      badge.textContent = 'Connection required';
       badge.className = 'badge badge-ng';
     }
-  } catch(e) { document.getElementById('qbo-status').textContent = 'エラー'; }
+  } catch(e) {
+    document.getElementById('qbo-status').textContent = 'Error';
+  }
 }
 checkStatus();
 </script>
