@@ -3,6 +3,15 @@ const axios = require('axios');
 const multer = require('multer');
 const { google } = require('googleapis');
 const QBOAuth = require('./routes/qboAuth');
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD
+  }
+});
 const path = require('path');
 
 const app = express();
@@ -176,5 +185,21 @@ app.get('/api/customers', async (req, res) => {
     res.status(500).json({ error: 'Failed to load customers: ' + err.message });
   }
 });
+// ── Note アラートメール送信 ───────────────────────────────
+async function sendNoteAlert(customerName, deliveryDate, noteItems) {
+  const itemList = noteItems.map(item =>
+    `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`
+  ).join('\n');
+
+  const mailOptions = {
+    from: process.env.GMAIL_USER,
+    to: process.env.GMAIL_USER,
+    subject: `⚠️ Order Note Alert — ${customerName}`,
+    text: `A note was included with the following order:\n\nCustomer: ${customerName}\nDelivery Date: ${deliveryDate}\n\nItems with notes:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`
+  };
+
+  await transporter.sendMail(mailOptions);
+  console.log('Note alert sent for:', customerName);
+}
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
