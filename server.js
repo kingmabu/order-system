@@ -16,6 +16,29 @@ app.use('/auth', QBOAuth);
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.get('/scan', (req, res) => res.sendFile(path.join(__dirname, 'public', 'scan.html')));
 
+app.get('/api/customer', async (req, res) => {
+  try {
+    const { cid } = req.query;
+    if (!cid) return res.status(400).json({ error: 'Customer ID is required' });
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.CLIENTS_SHEET_ID,
+      range: 'Client list!A:D'
+    });
+    const rows = result.data.values || [];
+    const row = rows.find(r => r[0] && r[0].toString().trim() === cid.toString().trim());
+    if (!row) return res.status(404).json({ error: `Customer ID ${cid} not found` });
+    res.json({ success: true, customerId: row[0], customerName: row[1] || '', qboSystemId: row[3] || '' });
+  } catch (err) {
+    console.error('Customer lookup error:', err.message);
+    res.status(500).json({ error: 'Customer lookup failed: ' + err.message });
+  }
+});
+
 app.post('/api/analyze', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: '画像が見つかりません' });
@@ -41,7 +64,6 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     const parsed = JSON.parse(cleaned);
     console.log('AI解析結果:', JSON.stringify(parsed, null, 2));
     parsed.items = (parsed.items || []).filter(item => Number(item.quantity) > 0);
-    console.log('数量あり:', parsed.items.length, '件');
     res.json({ success: true, data: parsed });
   } catch (err) {
     console.error('AI解析エラー:', err.message);
@@ -79,53 +101,44 @@ app.post('/api/create-invoice', async (req, res) => {
       ? 'https://quickbooks.api.intuit.com'
       : 'https://sandbox-quickbooks.api.intuit.com';
 
-    const customerQuery = await axios.get(
-      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Customer WHERE DisplayName = '${data.customer_name}'`)}`,
-      { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
-    );
-    let customerId;
-    const customers = customerQuery.data.QueryResponse.Customer;
-    if (customers && customers.length > 0) {
-      customerId = customers[0].Id;
-    } else {
-      const newCustomer = await axios.post(
-        `${baseUrl}/v3/company/${realmId}/customer`,
-        { DisplayName: data.customer_name },
-        { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
+    let customerId = data.qboSystemId || null;
+    if (!customerId) {
+      const customerQuery = await axios.get(
+        `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Customer WHERE DisplayName = '${data.customer_name}'`)}`,
+        { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
       );
-      customerId = newCustomer.data.Customer.Id;
+      const customers = customerQuery.data.QueryResponse.Customer;
+      if (customers && customers.length > 0) {
+        customerId = customers[0].Id;
+      } else {
+        const newCustomer = await axios.post(
+          `${baseUrl}/v3/company/${realmId}/customer`,
+          { DisplayName: data.customer_name },
+          { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
+        );
+        customerId = newCustomer.data.Customer.Id;
+      }
     }
 
     const lines = [];
     for (const item of data.items) {
-      if (!item.quantity || Number(item.quantity) <= 0) continue;
-      if (!item.sku) continue;
+      if (!item.quantity || Number(item.quantity) <= 0 || !item.sku) continue;
       const itemRes = await axios.get(
         `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Item WHERE Sku = '${item.sku}'`)}`,
         { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
       );
       const qboItems = itemRes.data.QueryResponse.Item;
-      if (!qboItems || qboItems.length === 0) {
-        console.log(`SKU not found: ${item.sku}`);
-        continue;
-      }
+      if (!qboItems || qboItems.length === 0) { console.log(`SKU not found: ${item.sku}`); continue; }
       const qboItem = qboItems[0];
-      console.log(`SKU ${item.sku} -> ${qboItem.Name}, Price: ${qboItem.UnitPrice}`);
       lines.push({
         Amount: Number(item.quantity) * (qboItem.UnitPrice || 0),
         DetailType: 'SalesItemLineDetail',
         Description: `${item.sku} - ${item.name}`,
-        SalesItemLineDetail: {
-          ItemRef: { value: qboItem.Id },
-          Qty: Number(item.quantity),
-          UnitPrice: qboItem.UnitPrice || 0
-        }
+        SalesItemLineDetail: { ItemRef: { value: qboItem.Id }, Qty: Number(item.quantity), UnitPrice: qboItem.UnitPrice || 0 }
       });
     }
 
-    if (lines.length === 0) {
-      return res.status(400).json({ error: 'No matching SKUs found in QuickBooks. Please check that items have SKUs set in QBO.' });
-    }
+    if (lines.length === 0) return res.status(400).json({ error: 'No matching SKUs found in QuickBooks.' });
 
     const invoice = await axios.post(
       `${baseUrl}/v3/company/${realmId}/invoice`,
