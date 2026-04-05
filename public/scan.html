@@ -101,7 +101,7 @@
         <thead><tr><th>SKU</th><th>Item</th><th style="text-align:right">Qty</th></tr></thead>
         <tbody id="itemsBody"></tbody>
       </table>
-      <button class="btn btn-primary" style="margin-top:16px" onclick="submitOrder()">Submit Order & Create Invoice</button>
+      <button class="btn btn-primary" id="submitBtn" style="margin-top:16px" onclick="submitOrder()">Submit Order & Create Invoice</button>
       <button class="btn btn-secondary" onclick="resetPhoto()">Retake Photo</button>
     </div>
   </div>
@@ -119,7 +119,7 @@
 <script>
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-let selectedFile = null, extractedData = null, selectedDate = null, customerInfo = null;
+let selectedFile = null, extractedData = null, selectedDate = null, customerInfo = null, isSubmitting = false;
 const urlParams = new URLSearchParams(window.location.search);
 const cid = urlParams.get('cid');
 
@@ -165,8 +165,8 @@ function selectDate(d, btn) {
   document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
   const offset = d.getTimezoneOffset();
-const localDate = new Date(d.getTime() - offset * 60 * 1000);
-selectedDate = localDate.toISOString().split('T')[0];
+  const localDate = new Date(d.getTime() - offset * 60 * 1000);
+  selectedDate = localDate.toISOString().split('T')[0];
   checkReady();
 }
 
@@ -229,9 +229,12 @@ function showResult(data) {
 }
 
 async function submitOrder() {
+  if (isSubmitting) return;
+  isSubmitting = true;
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').textContent = 'Processing...';
+
   showStatus('loading', 'Saving to Google Sheets...');
- const submitBtn = document.querySelector('.btn-primary[onclick="submitOrder()"]');
-  if (submitBtn) submitBtn.disabled = true;
   try {
     const sheetsRes = await fetch('/api/save-to-sheets', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -239,23 +242,30 @@ async function submitOrder() {
     });
     const sheetsJson = await sheetsRes.json();
     if (!sheetsJson.success) throw new Error(sheetsJson.error);
+
     showStatus('loading', 'Creating invoice in QuickBooks...');
     const tokenRes = await fetch('/auth/token');
     const tokenJson = await tokenRes.json();
     if (!tokenJson.accessToken) throw new Error('QBO not connected');
+
     const invoiceRes = await fetch('/api/create-invoice', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: extractedData, deliveryDate: selectedDate, accessToken: tokenJson.accessToken, realmId: tokenJson.realmId })
     });
     const invoiceJson = await invoiceRes.json();
     if (!invoiceJson.success) throw new Error(invoiceJson.error);
+
     const d = new Date(selectedDate + 'T12:00:00');
     document.getElementById('invoiceNum').textContent = 'Invoice #' + invoiceJson.invoiceNumber;
     document.getElementById('deliveryInfo').textContent = `${extractedData.customer_name} — Delivery: ${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
     document.getElementById('main-screen').style.display = 'none';
     document.getElementById('successScreen').style.display = 'block';
+    isSubmitting = false;
   } catch (err) {
     showStatus('error', 'Error: ' + err.message);
+    isSubmitting = false;
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').textContent = 'Submit Order & Create Invoice';
   }
 }
 
@@ -268,12 +278,14 @@ function showStatus(type, msg) {
 }
 
 function resetPhoto() {
-  selectedFile = null; extractedData = null;
+  selectedFile = null; extractedData = null; isSubmitting = false;
   document.getElementById('fileInput').value = '';
   document.getElementById('preview').style.display = 'none';
   document.getElementById('analyzeBtn').disabled = true;
   document.getElementById('resultCard').style.display = 'none';
   document.getElementById('status').style.display = 'none';
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').textContent = 'Submit Order & Create Invoice';
 }
 
 init();
