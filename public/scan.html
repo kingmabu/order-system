@@ -3,208 +3,276 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard</title>
+<title>Order Submission</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif; background: #f5f5f5; }
-  .header { background: white; padding: 16px 24px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
-  .header h1 { font-size: 18px; font-weight: 600; }
-  .tabs { display: flex; gap: 0; border-bottom: 1px solid #eee; background: white; padding: 0 24px; }
-  .tab { padding: 12px 20px; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; color: #888; }
-  .tab.active { border-bottom-color: #1D9E75; color: #1D9E75; font-weight: 600; }
-  .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
-  .status-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
-  .status-card { background: white; border-radius: 12px; padding: 16px; }
-  .status-card .label { font-size: 12px; color: #888; margin-bottom: 4px; }
-  .status-card .value { font-size: 20px; font-weight: 600; color: #1a1a1a; }
-  .badge { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 20px; margin-top: 6px; }
-  .badge-ok { background: #e8f5e9; color: #1b5e20; }
-  .badge-ng { background: #fce8e8; color: #7f1d1d; }
-  .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
-  .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; }
-  .btn-green { background: #1D9E75; color: white; }
-  .btn-green:hover { background: #178a64; }
-  .btn-outline { background: white; color: #1D9E75; border: 1px solid #1D9E75; }
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
-
-  /* QR Generator */
-  .search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
-  .search-bar input { flex: 1; padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
-  .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
-  .qr-card { background: white; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-  .qr-card .cid { font-size: 11px; color: #888; margin-bottom: 4px; }
-  .qr-card .name { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; line-height: 1.4; }
-  .qr-card canvas { display: block; margin: 0 auto 10px; }
-  .qr-card .url { font-size: 10px; color: #aaa; word-break: break-all; margin-bottom: 10px; }
-  .qr-card .print-btn { width: 100%; padding: 7px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #1D9E75; background: white; color: #1D9E75; }
-  .qr-card .print-btn:hover { background: #e8f5e9; }
-  .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
-  .print-area { display: none; }
-
-  @media print {
-    body * { visibility: hidden; }
-    .print-area, .print-area * { visibility: visible; }
-    .print-area { display: block; position: fixed; top: 0; left: 0; }
-  }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; min-height: 100vh; }
+  .container { max-width: 480px; margin: 0 auto; padding: 20px 16px; }
+  .header { text-align: center; margin-bottom: 24px; }
+  .header h1 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
+  .header .customer-tag { display: inline-block; background: #e8f5e9; color: #1b5e20; font-size: 13px; font-weight: 600; padding: 4px 14px; border-radius: 20px; margin-top: 6px; }
+  .header .no-customer { font-size: 13px; color: #888; margin-top: 6px; }
+  .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 14px; }
+  .delivery-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .date-btn { padding: 8px 4px; border-radius: 10px; border: 1.5px solid #e0e0e0; background: white; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .date-btn:hover { border-color: #1D9E75; background: #f0faf6; }
+  .date-btn.selected { border-color: #1D9E75; background: #1D9E75; color: white; }
+  .date-btn .dow { font-size: 10px; font-weight: 600; opacity: 0.7; display: block; }
+  .date-btn .day { font-size: 16px; font-weight: 700; display: block; line-height: 1.2; }
+  .date-btn .mon { font-size: 10px; opacity: 0.7; display: block; }
+  .upload-zone { border: 2px dashed #c8e6c9; border-radius: 12px; padding: 32px 20px; text-align: center; cursor: pointer; background: #f9fffe; transition: all 0.2s; }
+  .upload-zone:hover { border-color: #1D9E75; background: #e8f5e9; }
+  .upload-zone .icon { width: 52px; height: 52px; background: #e8f5e9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+  .upload-zone .icon svg { width: 26px; height: 26px; stroke: #1D9E75; fill: none; stroke-width: 1.5; }
+  .upload-zone h2 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .upload-zone p { font-size: 13px; color: #888; }
+  input[type=file] { display: none; }
+  .preview { display: none; margin-top: 12px; }
+  .preview img { width: 100%; border-radius: 8px; max-height: 220px; object-fit: cover; }
+  .btn { width: 100%; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+  .btn-primary { background: #1D9E75; color: white; }
+  .btn-primary:disabled { background: #a5d6c5; cursor: not-allowed; }
+  .btn-secondary { background: #f0f0f0; color: #555; margin-top: 10px; }
+  .status { display: none; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-top: 12px; }
+  .status.loading { background: #fff8e1; color: #856404; display: flex; }
+  .status.success { background: #e8f5e9; color: #1b5e20; display: flex; }
+  .status.error { background: #fce8e8; color: #7f1d1d; display: flex; }
+  .spinner { width: 18px; height: 18px; border: 2px solid #f3c64a; border-top-color: #856404; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .result-card { display: none; background: white; border-radius: 16px; padding: 20px; margin-top: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .result-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .delivery-confirm { background: #e8f5e9; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1b5e20; font-weight: 500; margin-bottom: 10px; }
+  .customer-confirm { background: #e8f0fe; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1a3c87; font-weight: 500; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: #888; padding: 6px 4px; border-bottom: 1px solid #eee; }
+  td { padding: 8px 4px; border-bottom: 1px solid #f5f5f5; }
+  .sku-badge { display: inline-block; background: #e8f5e9; color: #0F6E56; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+  .qty-num { font-weight: 600; font-size: 15px; color: #1a1a1a; }
+  .success-screen { display: none; text-align: center; padding: 40px 20px; }
+  .success-screen .check { width: 72px; height: 72px; background: #e8f5e9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+  .success-screen .check svg { width: 36px; height: 36px; stroke: #1D9E75; fill: none; stroke-width: 2.5; }
+  .success-screen h2 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+  .success-screen p { font-size: 14px; color: #666; }
+  .invoice-num { font-size: 14px; color: #1D9E75; font-weight: 600; margin-top: 10px; background: #e8f5e9; padding: 8px 16px; border-radius: 8px; display: inline-block; }
+  .error-screen { display: none; text-align: center; padding: 40px 20px; }
+  .error-screen h2 { font-size: 20px; font-weight: 700; color: #c62828; margin-bottom: 8px; }
+  .error-screen p { font-size: 14px; color: #666; }
 </style>
 </head>
 <body>
-<div class="header">
-  <h1>Order System — Admin</h1>
-  <button class="btn btn-outline" onclick="location.href='/auth/connect'">Reconnect QBO</button>
-</div>
-
-<div class="tabs">
-  <div class="tab active" onclick="switchTab('dashboard')">Dashboard</div>
-  <div class="tab" onclick="switchTab('qr')">Customer QR Codes</div>
-</div>
-
-<!-- Dashboard Tab -->
-<div class="tab-content active" id="tab-dashboard">
-  <div class="container">
-    <div class="status-cards">
-      <div class="status-card">
-        <div class="label">QBO Connection</div>
-        <div class="value" id="qbo-status">Checking...</div>
-        <div class="badge" id="qbo-badge">—</div>
-      </div>
-      <div class="status-card">
-        <div class="label">Customer Scan URL</div>
-        <div class="value" style="font-size:13px;" id="scan-url">—</div>
-      </div>
+<div class="container">
+  <div class="error-screen" id="errorScreen">
+    <h2>Invalid QR Code</h2>
+    <p>Please use your personalized QR code from your order sheet.</p>
+  </div>
+  <div id="main-screen">
+    <div class="header">
+      <h1>Order Submission</h1>
+      <div id="customerTag"></div>
     </div>
     <div class="card">
-      <h2>Connect to QuickBooks</h2>
-      <p style="font-size:14px; color:#555; margin-bottom:14px; line-height:1.6">
-        Click the button below to connect to QuickBooks Online.<br>
-        You will be redirected back here after login.
-      </p>
-      <button class="btn btn-green" onclick="location.href='/auth/connect'">Connect to QuickBooks</button>
+      <h2>1. Select Delivery Date</h2>
+      <div class="delivery-grid" id="dateGrid"></div>
     </div>
-  </div>
-</div>
-
-<!-- QR Codes Tab -->
-<div class="tab-content" id="tab-qr">
-  <div class="container">
     <div class="card">
-      <h2>Customer QR Codes</h2>
-      <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="Search by name or ID..." oninput="filterCards()"/>
-        <button class="btn btn-green" onclick="loadCustomers()">Reload</button>
+      <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+        <h2>2. Take / Select Photo</h2>
+        <p>Make sure the entire order sheet is visible</p>
+        <div class="preview" id="preview">
+          <img id="previewImg" alt="preview"/>
+        </div>
       </div>
-      <div id="qrGrid" class="qr-grid">
-        <div class="loading">Loading customers...</div>
+      <input type="file" id="fileInput" accept="image/*" capture="environment" onchange="handleFile(event)">
+      <div class="status" id="status">
+        <div class="spinner" id="spinner"></div>
+        <span id="statusText"></span>
       </div>
     </div>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="analyze()" disabled>Analyze Order Sheet</button>
+    <div class="result-card" id="resultCard">
+      <h3>Please Confirm Your Order</h3>
+      <div class="delivery-confirm" id="deliveryConfirm"></div>
+      <div class="customer-confirm" id="customerConfirm"></div>
+      <table>
+        <thead><tr><th>SKU</th><th>Item</th><th style="text-align:right">Qty</th></tr></thead>
+        <tbody id="itemsBody"></tbody>
+      </table>
+      <button class="btn btn-primary" style="margin-top:16px" onclick="submitOrder()">Submit Order & Create Invoice</button>
+      <button class="btn btn-secondary" onclick="resetPhoto()">Retake Photo</button>
+    </div>
+  </div>
+  <div class="success-screen" id="successScreen">
+    <div class="check">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h2>Order Submitted!</h2>
+    <p>Your invoice has been created successfully.</p>
+    <div class="invoice-num" id="invoiceNum"></div>
+    <p style="margin-top:12px; font-size:13px; color:#888;" id="deliveryInfo"></p>
+    <button class="btn btn-secondary" style="margin-top:24px" onclick="location.reload()">Submit Another Order</button>
   </div>
 </div>
-
-<div class="print-area" id="printArea"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-const BASE_URL = location.origin;
-let allCustomers = [];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let selectedFile = null, extractedData = null, selectedDate = null, customerInfo = null;
+const urlParams = new URLSearchParams(window.location.search);
+const cid = urlParams.get('cid');
 
-function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach((t,i) => {
-    t.classList.toggle('active', ['dashboard','qr'][i] === tab);
-  });
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
-  if (tab === 'qr' && allCustomers.length === 0) loadCustomers();
-}
-
-async function loadCustomers() {
-  document.getElementById('qrGrid').innerHTML = '<div class="loading">Loading customers...</div>';
-  try {
-    const res = await fetch('/api/customers');
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error);
-    allCustomers = json.customers;
-    renderCards(allCustomers);
-  } catch (err) {
-    document.getElementById('qrGrid').innerHTML = `<div class="loading" style="color:#c62828">Error: ${err.message}</div>`;
-  }
-}
-
-function renderCards(customers) {
-  const grid = document.getElementById('qrGrid');
-  if (customers.length === 0) {
-    grid.innerHTML = '<div class="loading">No customers found</div>';
+async function init() {
+  if (!cid) {
+    document.getElementById('customerTag').innerHTML = '<span class="no-customer">General Access</span>';
+    buildDateGrid();
     return;
   }
-  grid.innerHTML = '';
-  customers.forEach(c => {
-    const url = `${BASE_URL}/scan?cid=${encodeURIComponent(c.id)}`;
-    const div = document.createElement('div');
-    div.className = 'qr-card';
-    div.dataset.name = c.name.toLowerCase();
-    div.dataset.id = c.id.toLowerCase();
-    div.innerHTML = `
-      <div class="cid">ID: ${c.id}</div>
-      <div class="name">${c.name}</div>
-      <canvas id="qr-${c.id}"></canvas>
-      <div class="url">${url}</div>
-      <button class="print-btn" onclick="printQR('${c.id}', '${c.name.replace(/'/g,"\\'")}', '${url}')">Print QR</button>
-    `;
-    grid.appendChild(div);
-
-    new QRCode(document.getElementById(`qr-${c.id}`), {
-      text: url, width: 140, height: 140,
-      colorDark: '#1a1a1a', colorLight: '#ffffff'
-    });
-  });
-}
-
-function filterCards() {
-  const q = document.getElementById('searchInput').value.toLowerCase();
-  const filtered = allCustomers.filter(c =>
-    c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)
-  );
-  renderCards(filtered);
-}
-
-function printQR(id, name, url) {
-  const canvas = document.getElementById(`qr-${id}`);
-  const imgData = canvas.toDataURL();
-  const printArea = document.getElementById('printArea');
-  printArea.innerHTML = `
-    <div style="text-align:center; padding:40px; font-family:Arial,sans-serif;">
-      <h2 style="font-size:18px; margin-bottom:4px;">${name}</h2>
-      <p style="font-size:12px; color:#888; margin-bottom:20px;">Customer ID: ${id}</p>
-      <img src="${imgData}" style="width:200px;height:200px;display:block;margin:0 auto 16px;"/>
-      <p style="font-size:11px; color:#aaa;">${url}</p>
-      <p style="font-size:13px; font-weight:bold; color:#1D9E75; margin-top:12px;">Snap. Scan. Done.</p>
-    </div>
-  `;
-  window.print();
-}
-
-async function checkStatus() {
-  document.getElementById('scan-url').textContent = BASE_URL + '/scan';
   try {
-    const res = await fetch('/auth/status');
+    const res = await fetch(`/api/customer?cid=${encodeURIComponent(cid)}`);
     const json = await res.json();
-    const el = document.getElementById('qbo-status');
-    const badge = document.getElementById('qbo-badge');
-    if (json.connected) {
-      el.textContent = 'Connected';
-      badge.textContent = 'RealmID: ' + json.realmId;
-      badge.className = 'badge badge-ok';
-    } else {
-      el.textContent = 'Not connected';
-      badge.textContent = 'Connection required';
-      badge.className = 'badge badge-ng';
+    if (!json.success) {
+      document.getElementById('main-screen').style.display = 'none';
+      document.getElementById('errorScreen').style.display = 'block';
+      return;
     }
-  } catch(e) {
-    document.getElementById('qbo-status').textContent = 'Error';
+    customerInfo = json;
+    document.getElementById('customerTag').innerHTML = `<span class="customer-tag">${json.customerName}</span>`;
+    buildDateGrid();
+  } catch (err) {
+    document.getElementById('customerTag').innerHTML = '<span class="no-customer">General Access</span>';
+    buildDateGrid();
   }
 }
-checkStatus();
+
+function buildDateGrid() {
+  const grid = document.getElementById('dateGrid');
+  grid.innerHTML = '';
+  const today = new Date();
+  for (let i = 1; i <= 10; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const btn = document.createElement('button');
+    btn.className = 'date-btn';
+    btn.innerHTML = `<span class="dow">${DAYS[d.getDay()]}</span><span class="day">${d.getDate()}</span><span class="mon">${MONTHS[d.getMonth()]}</span>`;
+    btn.onclick = () => selectDate(d, btn);
+    grid.appendChild(btn);
+  }
+}
+
+function selectDate(d, btn) {
+  document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedDate = d.toISOString().split('T')[0];
+  checkReady();
+}
+
+function checkReady() {
+  document.getElementById('analyzeBtn').disabled = !(selectedFile && selectedDate);
+}
+
+function handleFile(e) {
+  selectedFile = e.target.files[0];
+  if (!selectedFile) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('previewImg').src = ev.target.result;
+    document.getElementById('preview').style.display = 'block';
+    checkReady();
+  };
+  reader.readAsDataURL(selectedFile);
+}
+
+async function analyze() {
+  if (!selectedFile || !selectedDate) return;
+  showStatus('loading', 'AI is reading your order sheet...');
+  document.getElementById('analyzeBtn').disabled = true;
+  const formData = new FormData();
+  formData.append('image', selectedFile);
+  try {
+    const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+    extractedData = json.data;
+    if (customerInfo) {
+      extractedData.customer_name = customerInfo.customerName;
+      extractedData.qboSystemId = customerInfo.qboSystemId;
+    }
+    showResult(extractedData);
+    showStatus('success', 'Done! Please review your order below.');
+  } catch (err) {
+    showStatus('error', 'Failed: ' + err.message);
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+}
+
+function showResult(data) {
+  const d = new Date(selectedDate + 'T12:00:00');
+  document.getElementById('deliveryConfirm').textContent = `Delivery: ${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  document.getElementById('customerConfirm').textContent = `Customer: ${data.customer_name}`;
+  const tbody = document.getElementById('itemsBody');
+  tbody.innerHTML = '';
+  (data.items || []).forEach(item => {
+    tbody.innerHTML += `<tr>
+      <td><span class="sku-badge">${item.sku || '-'}</span></td>
+      <td style="font-size:13px">${item.name}</td>
+      <td style="text-align:right"><span class="qty-num">${item.quantity}</span></td>
+    </tr>`;
+  });
+  if ((data.items || []).length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#888;padding:16px">No items with quantity found</td></tr>';
+  }
+  document.getElementById('resultCard').style.display = 'block';
+}
+
+async function submitOrder() {
+  showStatus('loading', 'Saving to Google Sheets...');
+  try {
+    const sheetsRes = await fetch('/api/save-to-sheets', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: extractedData, deliveryDate: selectedDate })
+    });
+    const sheetsJson = await sheetsRes.json();
+    if (!sheetsJson.success) throw new Error(sheetsJson.error);
+    showStatus('loading', 'Creating invoice in QuickBooks...');
+    const tokenRes = await fetch('/auth/token');
+    const tokenJson = await tokenRes.json();
+    if (!tokenJson.accessToken) throw new Error('QBO not connected');
+    const invoiceRes = await fetch('/api/create-invoice', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: extractedData, deliveryDate: selectedDate, accessToken: tokenJson.accessToken, realmId: tokenJson.realmId })
+    });
+    const invoiceJson = await invoiceRes.json();
+    if (!invoiceJson.success) throw new Error(invoiceJson.error);
+    const d = new Date(selectedDate + 'T12:00:00');
+    document.getElementById('invoiceNum').textContent = 'Invoice #' + invoiceJson.invoiceNumber;
+    document.getElementById('deliveryInfo').textContent = `${extractedData.customer_name} — Delivery: ${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+    document.getElementById('main-screen').style.display = 'none';
+    document.getElementById('successScreen').style.display = 'block';
+  } catch (err) {
+    showStatus('error', 'Error: ' + err.message);
+  }
+}
+
+function showStatus(type, msg) {
+  const el = document.getElementById('status');
+  el.className = 'status ' + type;
+  el.style.display = 'flex';
+  document.getElementById('statusText').textContent = msg;
+  document.getElementById('spinner').style.display = type === 'loading' ? 'block' : 'none';
+}
+
+function resetPhoto() {
+  selectedFile = null; extractedData = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('preview').style.display = 'none';
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('status').style.display = 'none';
+}
+
+init();
 </script>
 </body>
 </html>
