@@ -142,7 +142,7 @@ app.post('/api/create-invoice', async (req, res) => {
 
     const invoice = await axios.post(
       `${baseUrl}/v3/company/${realmId}/invoice`,
-      { CustomerRef: { value: customerId }, ShipDate: deliveryDate, Line: lines },
+      { CustomerRef: { value: customerId }, ShipDate: deliveryDate, TxnDate: deliveryDate, Line: lines },
       { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
     );
 
