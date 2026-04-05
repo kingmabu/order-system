@@ -79,7 +79,7 @@ app.post('/api/save-to-sheets', async (req, res) => {
       scopes: ['https://www.googleapis.com/auth/spreadsheets']
     });
     const sheets = google.sheets({ version: 'v4', auth });
-    const orderDate = new Date().toLocaleDateString('en-US');
+    const orderDate = new Date().toLocaleDateString('en-US', {timeZone: 'America/Los_Angeles'});
     const rows = data.items.map(item => [orderDate, deliveryDate, data.customer_name, item.sku, item.name, item.quantity, '']);
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
