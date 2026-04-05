@@ -9,8 +9,9 @@
   body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; min-height: 100vh; }
   .container { max-width: 480px; margin: 0 auto; padding: 20px 16px; }
   .header { text-align: center; margin-bottom: 24px; }
-  .header h1 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
-  .header p { font-size: 14px; color: #666; line-height: 1.6; }
+  .header h1 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
+  .header .customer-tag { display: inline-block; background: #e8f5e9; color: #1b5e20; font-size: 13px; font-weight: 600; padding: 4px 14px; border-radius: 20px; margin-top: 6px; }
+  .header .no-customer { font-size: 13px; color: #888; margin-top: 6px; }
   .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
   .card h2 { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 14px; }
   .delivery-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
@@ -41,10 +42,8 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .result-card { display: none; background: white; border-radius: 16px; padding: 20px; margin-top: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
   .result-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
-  .field { margin-bottom: 12px; }
-  .field label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px; }
-  .field input { width: 100%; padding: 9px 10px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
-  .delivery-confirm { background: #e8f5e9; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1b5e20; font-weight: 500; margin-bottom: 14px; }
+  .delivery-confirm { background: #e8f5e9; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1b5e20; font-weight: 500; margin-bottom: 10px; }
+  .customer-confirm { background: #e8f0fe; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1a3c87; font-weight: 500; margin-bottom: 14px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { text-align: left; font-size: 11px; font-weight: 600; color: #888; padding: 6px 4px; border-bottom: 1px solid #eee; }
   td { padding: 8px 4px; border-bottom: 1px solid #f5f5f5; }
@@ -56,21 +55,28 @@
   .success-screen h2 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
   .success-screen p { font-size: 14px; color: #666; }
   .invoice-num { font-size: 14px; color: #1D9E75; font-weight: 600; margin-top: 10px; background: #e8f5e9; padding: 8px 16px; border-radius: 8px; display: inline-block; }
+  .error-screen { display: none; text-align: center; padding: 40px 20px; }
+  .error-screen h2 { font-size: 20px; font-weight: 700; color: #c62828; margin-bottom: 8px; }
+  .error-screen p { font-size: 14px; color: #666; }
 </style>
 </head>
 <body>
 <div class="container">
+  <div class="error-screen" id="errorScreen">
+    <h2>Invalid QR Code</h2>
+    <p>Please use your personalized QR code from your order sheet.</p>
+  </div>
   <div id="main-screen">
     <div class="header">
       <h1>Order Submission</h1>
-      <p>Select delivery date, then take a photo of your order sheet.</p>
+      <div id="customerTag"></div>
     </div>
     <div class="card">
       <h2>1. Select Delivery Date</h2>
       <div class="delivery-grid" id="dateGrid"></div>
     </div>
     <div class="card">
-      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+      <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
         <div class="icon">
           <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
         </div>
@@ -90,16 +96,13 @@
     <div class="result-card" id="resultCard">
       <h3>Please Confirm Your Order</h3>
       <div class="delivery-confirm" id="deliveryConfirm"></div>
-      <div class="field">
-        <label>Restaurant Name</label>
-        <input type="text" id="customerName"/>
-      </div>
+      <div class="customer-confirm" id="customerConfirm"></div>
       <table>
         <thead><tr><th>SKU</th><th>Item</th><th style="text-align:right">Qty</th></tr></thead>
         <tbody id="itemsBody"></tbody>
       </table>
       <button class="btn btn-primary" style="margin-top:16px" onclick="submitOrder()">Submit Order & Create Invoice</button>
-      <button class="btn btn-secondary" onclick="resetAll()">Retake Photo</button>
+      <button class="btn btn-secondary" onclick="resetPhoto()">Retake Photo</button>
     </div>
   </div>
   <div class="success-screen" id="successScreen">
@@ -110,15 +113,38 @@
     <p>Your invoice has been created successfully.</p>
     <div class="invoice-num" id="invoiceNum"></div>
     <p style="margin-top:12px; font-size:13px; color:#888;" id="deliveryInfo"></p>
-    <button class="btn btn-secondary" style="margin-top:24px" onclick="resetAll()">Submit Another Order</button>
+    <button class="btn btn-secondary" style="margin-top:24px" onclick="location.reload()">Submit Another Order</button>
   </div>
 </div>
 <script>
-let selectedFile = null;
-let extractedData = null;
-let selectedDate = null;
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let selectedFile = null, extractedData = null, selectedDate = null, customerInfo = null;
+const urlParams = new URLSearchParams(window.location.search);
+const cid = urlParams.get('cid');
+
+async function init() {
+  if (!cid) {
+    document.getElementById('customerTag').innerHTML = '<span class="no-customer">General Access</span>';
+    buildDateGrid();
+    return;
+  }
+  try {
+    const res = await fetch(`/api/customer?cid=${encodeURIComponent(cid)}`);
+    const json = await res.json();
+    if (!json.success) {
+      document.getElementById('main-screen').style.display = 'none';
+      document.getElementById('errorScreen').style.display = 'block';
+      return;
+    }
+    customerInfo = json;
+    document.getElementById('customerTag').innerHTML = `<span class="customer-tag">${json.customerName}</span>`;
+    buildDateGrid();
+  } catch (err) {
+    document.getElementById('customerTag').innerHTML = '<span class="no-customer">General Access</span>';
+    buildDateGrid();
+  }
+}
 
 function buildDateGrid() {
   const grid = document.getElementById('dateGrid');
@@ -169,6 +195,10 @@ async function analyze() {
     const json = await res.json();
     if (!json.success) throw new Error(json.error);
     extractedData = json.data;
+    if (customerInfo) {
+      extractedData.customer_name = customerInfo.customerName;
+      extractedData.qboSystemId = customerInfo.qboSystemId;
+    }
     showResult(extractedData);
     showStatus('success', 'Done! Please review your order below.');
   } catch (err) {
@@ -178,9 +208,9 @@ async function analyze() {
 }
 
 function showResult(data) {
-  document.getElementById('customerName').value = data.customer_name || '';
   const d = new Date(selectedDate + 'T12:00:00');
   document.getElementById('deliveryConfirm').textContent = `Delivery: ${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  document.getElementById('customerConfirm').textContent = `Customer: ${data.customer_name}`;
   const tbody = document.getElementById('itemsBody');
   tbody.innerHTML = '';
   (data.items || []).forEach(item => {
@@ -197,12 +227,10 @@ function showResult(data) {
 }
 
 async function submitOrder() {
-  extractedData.customer_name = document.getElementById('customerName').value;
   showStatus('loading', 'Saving to Google Sheets...');
   try {
     const sheetsRes = await fetch('/api/save-to-sheets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: extractedData, deliveryDate: selectedDate })
     });
     const sheetsJson = await sheetsRes.json();
@@ -212,15 +240,14 @@ async function submitOrder() {
     const tokenJson = await tokenRes.json();
     if (!tokenJson.accessToken) throw new Error('QBO not connected');
     const invoiceRes = await fetch('/api/create-invoice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: extractedData, deliveryDate: selectedDate, accessToken: tokenJson.accessToken, realmId: tokenJson.realmId })
     });
     const invoiceJson = await invoiceRes.json();
     if (!invoiceJson.success) throw new Error(invoiceJson.error);
     const d = new Date(selectedDate + 'T12:00:00');
     document.getElementById('invoiceNum').textContent = 'Invoice #' + invoiceJson.invoiceNumber;
-    document.getElementById('deliveryInfo').textContent = `Delivery: ${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+    document.getElementById('deliveryInfo').textContent = `${extractedData.customer_name} — Delivery: ${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
     document.getElementById('main-screen').style.display = 'none';
     document.getElementById('successScreen').style.display = 'block';
   } catch (err) {
@@ -236,19 +263,16 @@ function showStatus(type, msg) {
   document.getElementById('spinner').style.display = type === 'loading' ? 'block' : 'none';
 }
 
-function resetAll() {
-  selectedFile = null; extractedData = null; selectedDate = null;
+function resetPhoto() {
+  selectedFile = null; extractedData = null;
   document.getElementById('fileInput').value = '';
   document.getElementById('preview').style.display = 'none';
   document.getElementById('analyzeBtn').disabled = true;
   document.getElementById('resultCard').style.display = 'none';
   document.getElementById('status').style.display = 'none';
-  document.getElementById('main-screen').style.display = 'block';
-  document.getElementById('successScreen').style.display = 'none';
-  document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('selected'));
 }
 
-buildDateGrid();
+init();
 </script>
 </body>
 </html>
