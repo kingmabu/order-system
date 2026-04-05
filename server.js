@@ -4,14 +4,6 @@ const multer = require('multer');
 const { google } = require('googleapis');
 const QBOAuth = require('./routes/qboAuth');
 const nodemailer = require('nodemailer');
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD
-  }
-});
 const path = require('path');
 
 const app = express();
@@ -21,6 +13,28 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use('/auth', QBOAuth);
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD
+  }
+});
+
+async function sendNoteAlert(customerName, deliveryDate, noteItems) {
+  const itemList = noteItems.map(item =>
+    `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`
+  ).join('\n');
+  const mailOptions = {
+    from: process.env.GMAIL_USER,
+    to: process.env.GMAIL_USER,
+    subject: `⚠️ Order Note Alert — ${customerName}`,
+    text: `A note was included with the following order:\n\nCustomer: ${customerName}\nDelivery Date: ${deliveryDate}\n\nItems with notes:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`
+  };
+  await transporter.sendMail(mailOptions);
+  console.log('Note alert sent for:', customerName);
+}
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.get('/scan', (req, res) => res.sendFile(path.join(__dirname, 'public', 'scan.html')));
@@ -48,6 +62,28 @@ app.get('/api/customer', async (req, res) => {
   }
 });
 
+app.get('/api/customers', async (req, res) => {
+  try {
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.CLIENTS_SHEET_ID,
+      range: 'Client list!A:B'
+    });
+    const rows = result.data.values || [];
+    const customers = rows
+      .filter(r => r[0] && r[1] && r[0] !== 'Customer ID')
+      .map(r => ({ id: r[0].toString().trim(), name: r[1].toString().trim() }));
+    res.json({ success: true, customers });
+  } catch (err) {
+    console.error('Customers error:', err.message);
+    res.status(500).json({ error: 'Failed to load customers: ' + err.message });
+  }
+});
+
 app.post('/api/analyze', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: '画像が見つかりません' });
@@ -62,7 +98,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
-            { type: 'text', text: 'この発注書の画像から以下の情報をJSON形式で抽出してください。必ずJSON形式のみで返答し、他のテキストは含めないでください。\n{\n  "customer_name": "顧客名またはRestaurant Name欄の値",\n  "order_date": "注文日(YYYY-MM-DD形式、不明な場合は今日の日付)",\n  "po_number": "発注書番号(あれば、なければ空文字)",\n  "items": [\n    {\n      "sku": "SKU(左端列のアルファベット1文字+数字3桁、例:B002,C006,P021)",\n      "name": "商品名(ITEMS列の値)",\n      "quantity": "数量(QTY列の数値、空欄または未記入の場合は必ず0)",\n      "unit_price": 0\n    }\n  ]\n}' }
+            { type: 'text', text: 'この発注書の画像から以下の情報をJSON形式で抽出してください。必ずJSON形式のみで返答し、他のテキストは含めないでください。\n{\n  "customer_name": "顧客名またはRestaurant Name欄の値",\n  "order_date": "注文日(YYYY-MM-DD形式、不明な場合は今日の日付)",\n  "po_number": "発注書番号(あれば、なければ空文字)",\n  "items": [\n    {\n      "sku": "SKU(左端列のアルファベット1文字+数字3桁、例:B002,C006,P021)",\n      "name": "商品名(ITEMS列の値)",\n      "quantity": "数量(QTY列の数値、空欄または未記入の場合は必ず0)",\n      "note": "NOTE列に記入がある場合はその内容、なければ空文字",\n      "unit_price": 0\n    }\n  ]\n}' }
           ]
         }]
       },
@@ -96,6 +132,12 @@ app.post('/api/save-to-sheets', async (req, res) => {
       valueInputOption: 'USER_ENTERED',
       resource: { values: rows }
     });
+    const noteItems = data.items.filter(item => item.note && item.note.trim() !== '');
+    if (noteItems.length > 0) {
+      sendNoteAlert(data.customer_name, deliveryDate, noteItems).catch(err =>
+        console.error('Note alert error:', err.message)
+      );
+    }
     res.json({ success: true, rows: rows.length });
   } catch (err) {
     console.error('Sheets書き込みエラー:', err.message);
@@ -163,43 +205,6 @@ app.post('/api/create-invoice', async (req, res) => {
     res.status(500).json({ error: 'Invoice creation failed: ' + JSON.stringify(err.response?.data || err.message) });
   }
 });
-// ── Clients List全顧客を取得 ──────────────────────────────
-app.get('/api/customers', async (req, res) => {
-  try {
-    const auth = new google.auth.GoogleAuth({
-      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-    const result = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.CLIENTS_SHEET_ID,
-      range: 'Client list!A:B'
-    });
-    const rows = result.data.values || [];
-    const customers = rows
-      .filter(r => r[0] && r[1] && r[0] !== 'Customer ID')
-      .map(r => ({ id: r[0].toString().trim(), name: r[1].toString().trim() }));
-    res.json({ success: true, customers });
-  } catch (err) {
-    console.error('Customers error:', err.message);
-    res.status(500).json({ error: 'Failed to load customers: ' + err.message });
-  }
-});
-// ── Note アラートメール送信 ───────────────────────────────
-async function sendNoteAlert(customerName, deliveryDate, noteItems) {
-  const itemList = noteItems.map(item =>
-    `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`
-  ).join('\n');
 
-  const mailOptions = {
-    from: process.env.GMAIL_USER,
-    to: process.env.GMAIL_USER,
-    subject: `⚠️ Order Note Alert — ${customerName}`,
-    text: `A note was included with the following order:\n\nCustomer: ${customerName}\nDelivery Date: ${deliveryDate}\n\nItems with notes:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`
-  };
-
-  await transporter.sendMail(mailOptions);
-  console.log('Note alert sent for:', customerName);
-}
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
