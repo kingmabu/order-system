@@ -149,7 +149,7 @@ app.post('/api/save-to-sheets', async (req, res) => {
     const noteItems = data.items.filter(item => item.note && item.note.trim() !== '');
     if (noteItems.length > 0) {
       console.log('orderKey received:', data.orderKey);
-console.log('imageStore keys:', [...imageStore.keys()]);
+
       const stored = data.orderKey ? imageStore.get(data.orderKey) : null;
       sendNoteAlert(data.customer_name, deliveryDate, noteItems, stored?.buffer, stored?.mimeType).catch(err =>
         console.error('Note alert error:', err.message)
