@@ -164,7 +164,9 @@ function buildDateGrid() {
 function selectDate(d, btn) {
   document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
-  selectedDate = d.toISOString().split('T')[0];
+  const offset = d.getTimezoneOffset();
+const localDate = new Date(d.getTime() - offset * 60 * 1000);
+selectedDate = localDate.toISOString().split('T')[0];
   checkReady();
 }
 
