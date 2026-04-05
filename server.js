@@ -154,6 +154,27 @@ app.post('/api/create-invoice', async (req, res) => {
     res.status(500).json({ error: 'Invoice creation failed: ' + JSON.stringify(err.response?.data || err.message) });
   }
 });
-
+// ── Clients List全顧客を取得 ──────────────────────────────
+app.get('/api/customers', async (req, res) => {
+  try {
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.CLIENTS_SHEET_ID,
+      range: 'Client list!A:B'
+    });
+    const rows = result.data.values || [];
+    const customers = rows
+      .filter(r => r[0] && r[1] && r[0] !== 'Customer ID')
+      .map(r => ({ id: r[0].toString().trim(), name: r[1].toString().trim() }));
+    res.json({ success: true, customers });
+  } catch (err) {
+    console.error('Customers error:', err.message);
+    res.status(500).json({ error: 'Failed to load customers: ' + err.message });
+  }
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
