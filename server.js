@@ -45,13 +45,16 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer,
     replacementLine = `\n\nREPLACEMENT REQUEST:\nItems needed: ${items.join(', ') || 'Not specified'}`;
   }
 
-  const subjectFlags = [];
-  if (hasContact) subjectFlags.push('Contact Request');
-  if (hasReplacement) subjectFlags.push('Replacement Request');
-  if (noteItems.length > 0) subjectFlags.push('Order Note');
+  const subjectIcons = [];
+  if (hasContact) subjectIcons.push('📞');
+  if (hasReplacement) {
+    if (replacementRequest.marker === true || replacementRequest.marker === 'true') subjectIcons.push('✏️');
+    if (replacementRequest.sleeve === true || replacementRequest.sleeve === 'true') subjectIcons.push('📁');
+  }
+  if (noteItems.length > 0) subjectIcons.push('⚠️');
 
-  const subject = subjectFlags.length > 0
-    ? `[${subjectFlags.join(' | ')}] ${customerName}`
+  const subject = subjectIcons.length > 0
+    ? `${subjectIcons.join('')} ${customerName}`
     : `Alert - ${customerName}`;
 
   const itemSection = itemList ? `\n\nItems with notes:\n${itemList}` : '';
