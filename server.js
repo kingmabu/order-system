@@ -57,12 +57,16 @@ app.get('/api/customer', async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth });
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.CLIENTS_SHEET_ID,
-      range: 'Client list!A:D'
+      range: 'Client list!A:Q'
     });
     const rows = result.data.values || [];
     const row = rows.find(r => r[0] && r[0].toString().trim() === cid.toString().trim());
     if (!row) return res.status(404).json({ error: `Customer ID ${cid} not found` });
-    res.json({ success: true, customerId: row[0], customerName: row[1] || '', qboSystemId: row[3] || '' });
+    const managerPhone = row[13] || '';
+const ownerPhone = row[10] || '';
+const rep1Phone = row[16] || '';
+const phone = managerPhone || ownerPhone || rep1Phone || '';
+res.json({ success: true, customerId: row[0], customerName: row[1] || '', qboSystemId: row[3] || '', phone });
   } catch (err) {
     console.error('Customer lookup error:', err.message);
     res.status(500).json({ error: 'Customer lookup failed: ' + err.message });
