@@ -43,23 +43,6 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer,
   await transporter.sendMail(mailOptions);
   console.log('Note alert sent for:', customerName);
 }
-  const itemList = noteItems.map(item =>
-    `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`
-  ).join('\n');
-  const mailOptions = {
-    from: process.env.GMAIL_USER,
-    to: process.env.GMAIL_USER,
-    subject: `⚠️ Order Note Alert — ${customerName}`,
-    text: `A note was included with the following order:\n\nCustomer: ${customerName}\nDelivery Date: ${deliveryDate}\n\nItems with notes:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`,
-    attachments: imageBuffer ? [{
-      filename: `order-${customerName}-${deliveryDate}.jpg`,
-      content: imageBuffer,
-      contentType: imageMimeType || 'image/jpeg'
-    }] : []
-  };
-  await transporter.sendMail(mailOptions);
-  console.log('Note alert sent for:', customerName);
-}
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.get('/scan', (req, res) => res.sendFile(path.join(__dirname, 'public', 'scan.html')));
@@ -81,10 +64,10 @@ app.get('/api/customer', async (req, res) => {
     const row = rows.find(r => r[0] && r[0].toString().trim() === cid.toString().trim());
     if (!row) return res.status(404).json({ error: `Customer ID ${cid} not found` });
     const managerPhone = row[13] || '';
-const ownerPhone = row[10] || '';
-const rep1Phone = row[16] || '';
-const phone = managerPhone || ownerPhone || rep1Phone || '';
-res.json({ success: true, customerId: row[0], customerName: row[1] || '', qboSystemId: row[3] || '', phone });
+    const ownerPhone = row[10] || '';
+    const rep1Phone = row[16] || '';
+    const phone = managerPhone || ownerPhone || rep1Phone || '';
+    res.json({ success: true, customerId: row[0], customerName: row[1] || '', qboSystemId: row[3] || '', phone });
   } catch (err) {
     console.error('Customer lookup error:', err.message);
     res.status(500).json({ error: 'Customer lookup failed: ' + err.message });
@@ -170,8 +153,6 @@ app.post('/api/save-to-sheets', async (req, res) => {
 
     const noteItems = data.items.filter(item => item.note && item.note.trim() !== '');
     if (noteItems.length > 0) {
-      console.log('orderKey received:', data.orderKey);
-
       const stored = data.orderKey ? imageStore.get(data.orderKey) : null;
       sendNoteAlert(data.customer_name, deliveryDate, noteItems, stored?.buffer, stored?.mimeType, data.customerPhone).catch(err =>
         console.error('Note alert error:', err.message)
