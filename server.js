@@ -110,7 +110,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
-            { type: 'text', text: 'この発注書の画像から以下の情報をJSON形式で抽出してください。必ずJSON形式のみで返答し、他のテキストは含めないでください。\n{\n  "customer_name": "顧客名またはRestaurant Name欄の値",\n  "order_date": "注文日(YYYY-MM-DD形式、不明な場合は今日の日付)",\n  "po_number": "発注書番号(あれば、なければ空文字)",\n  "items": [\n    {\n      "sku": "SKU(左端列のアルファベット1文字+数字3桁、例:B002,C006,P021)",\n      "name": "商品名(ITEMS列の値)",\n      "quantity": "数量(QTY列の数値、空欄または未記入の場合は必ず0)",\n      "note": "NOTE列に記入がある場合はその内容、なければ空文字",\n      "unit_price": 0\n    }\n  ]\n}' }
+            { type: 'text', text: 'この発注書の画像から以下の情報をJSON形式で抽出してください。必ずJSON形式のみで返答し、他のテキストは含めないでください。\n{\n  "customer_name": "顧客名またはRestaurant Name欄の値",\n  "order_date": "注文日(YYYY-MM-DD形式、不明な場合は今日の日付)",\n  "po_number": "発注書番号(あれば、なければ空文字)",\n  "items": [\n    {\n      "sku": "SKU(左端列のアルファベット1文字+数字3桁、例:B002,C006,P021)",\n      "name": "商品名(ITEMS列の値)",\n      "quantity": "数量(QTY列の数値、空欄または未記入の場合は必ず0)",\n      "note": "NOTE列に記入がある場合はその内容、なければ空文字",\n      "unit_price": 0\n    }\n  ],\n  "contact_request": {\n    "requested": "Contact me欄のチェックボックスにチェックがある場合はtrue、なければfalse",\n    "method": "TextまたはCallのどちらにチェックがあるか、なければ空文字",\n    "message": "Message欄に記入がある場合はその内容、なければ空文字"\n  }\n}' }
           ]
         }]
       },
