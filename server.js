@@ -24,25 +24,43 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer, imageMimeType, phone, contactRequest) {
+async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer, imageMimeType, phone, contactRequest, replacementRequest) {
   const itemList = noteItems.length > 0
     ? noteItems.map(item => `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`).join('\n')
     : '';
   const phoneLine = phone ? `\nPhone: ${phone}` : '';
   const hasContact = contactRequest && (contactRequest.requested === true || contactRequest.requested === 'true');
+  const hasReplacement = replacementRequest && (replacementRequest.requested === true || replacementRequest.requested === 'true');
+
   let contactLine = '';
   if (hasContact) {
-    contactLine = `\n\n📞 CONTACT REQUEST:\nMethod: ${contactRequest.method || 'Not specified'}\nMessage: ${contactRequest.message || 'No message'}`;
+    contactLine = `\n\nCONTACT REQUEST:\nMethod: ${contactRequest.method || 'Not specified'}\nMessage: ${contactRequest.message || 'No message'}`;
   }
-  const subject = hasContact
-    ? `📞 Contact Request — ${customerName}`
-    : `⚠️ Order Note Alert — ${customerName}`;
+
+  let replacementLine = '';
+  if (hasReplacement) {
+    const items = [];
+    if (replacementRequest.marker === true || replacementRequest.marker === 'true') items.push('Marker');
+    if (replacementRequest.sleeve === true || replacementRequest.sleeve === 'true') items.push('Sleeve');
+    replacementLine = `\n\nREPLACEMENT REQUEST:\nItems needed: ${items.join(', ') || 'Not specified'}`;
+  }
+
+  const subjectFlags = [];
+  if (hasContact) subjectFlags.push('Contact Request');
+  if (hasReplacement) subjectFlags.push('Replacement Request');
+  if (noteItems.length > 0) subjectFlags.push('Order Note');
+
+  const subject = subjectFlags.length > 0
+    ? `[${subjectFlags.join(' | ')}] ${customerName}`
+    : `Alert - ${customerName}`;
+
   const itemSection = itemList ? `\n\nItems with notes:\n${itemList}` : '';
+
   const mailOptions = {
     from: process.env.GMAIL_USER,
     to: process.env.GMAIL_USER,
     subject,
-    text: `Customer: ${customerName}${phoneLine}\nDelivery Date: ${deliveryDate}${contactLine}${itemSection}\n\n---\nCalifornia Food Product, MY Inc.`,
+    text: `Customer: ${customerName}${phoneLine}\nDelivery Date: ${deliveryDate}${contactLine}${replacementLine}${itemSection}\n\n---\nCalifornia Food Product, MY Inc.`,
     attachments: imageBuffer ? [{
       filename: `order-${customerName}-${deliveryDate}.jpg`,
       content: imageBuffer,
@@ -107,9 +125,38 @@ app.get('/api/customers', async (req, res) => {
 
 app.post('/api/analyze', upload.single('image'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: '画像が見つかりません' });
+    if (!req.file) return res.status(400).json({ error: 'No image found' });
     const base64Image = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
+
+    const promptText = [
+      'Extract the following information from this order sheet image in JSON format only. Do not include any other text.',
+      '{',
+      '  "customer_name": "value of Restaurant Name field",',
+      '  "order_date": "order date in YYYY-MM-DD format, use today if unknown",',
+      '  "po_number": "PO number if exists, otherwise empty string",',
+      '  "items": [',
+      '    {',
+      '      "sku": "SKU from leftmost column (1 letter + 3 digits, e.g. B002, C006, P021)",',
+      '      "name": "item name from ITEMS column",',
+      '      "quantity": "number from QTY column, use 0 if blank",',
+      '      "note": "content of NOTE column if filled, otherwise empty string",',
+      '      "unit_price": 0',
+      '    }',
+      '  ],',
+      '  "contact_request": {',
+      '    "requested": "true if Contact me checkbox is checked, otherwise false",',
+      '    "method": "Text or Call depending on which is checked, otherwise empty string",',
+      '    "message": "content of Message field if filled, otherwise empty string"',
+      '  },',
+      '  "replacement_request": {',
+      '    "requested": "true if Need replacement checkbox is checked, otherwise false",',
+      '    "marker": "true if Marker checkbox is checked, otherwise false",',
+      '    "sleeve": "true if Sleeve checkbox is checked, otherwise false"',
+      '  }',
+      '}'
+    ].join('\n');
+
     const response = await axios.post(
       'https://api.anthropic.com/v1/messages',
       {
@@ -119,7 +166,8 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
-            { type: 'text', text: 'この発注書の画像から以下の情報をJSON形式で抽出してください。必ずJSON形式のみで返答し、他のテキストは含めないでください。\n{\n  "customer_name": "顧客名またはRestaurant Name欄の値",\n  "order_date": "注文日(YYYY-MM-DD形式、不明な場合は今日の日付)",\n  "po_number": "発注書番号(あれば、なければ空文字)",\n  "items": [\n    {\n      "sku": "SKU(左端列のアルファベット1文字+数字3桁、例:B002,C006,P021)",\n      "name": "商品名(ITEMS列の値)",\n      "quantity": "数量(QTY列の数値、空欄または未記入の場合は必ず0)",\n      "note": "NOTE列に記入がある場合はその内容、なければ空文字",\n      "unit_price": 0\n    }\n  ],\n  "contact_request": {\n    "requested": "Contact me欄のチェックボックスにチェックがある場合はtrue、なければfalse",\n    "method": "TextまたはCallのどちらにチェックがあるか、なければ空文字",\n    "message": "Message欄に記入がある場合はその内容、なければ空文字"\n  },\n  "replacement_request": {\n    "requested": "Need replacement欄にチェックがある場合はtrue、なければfalse",\n    "marker": "Markerにチェックがある場合はtrue、なければfalse",\n    "sleeve": "Sleeveにチェックがある場合はtrue、なければfalse"\n  }
+            { type: 'text', text: promptText }
+          ]
         }]
       },
       { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' } }
@@ -127,7 +175,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     const text = response.data.content[0].text;
     const cleaned = text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(cleaned);
-    console.log('AI解析結果:', JSON.stringify(parsed, null, 2));
+    console.log('AI result:', JSON.stringify(parsed, null, 2));
     parsed.items = (parsed.items || []).filter(item => Number(item.quantity) > 0);
 
     const orderKey = `${Date.now()}`;
@@ -137,8 +185,8 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
 
     res.json({ success: true, data: parsed });
   } catch (err) {
-    console.error('AI解析エラー:', err.message);
-    res.status(500).json({ error: 'AI解析に失敗しました: ' + err.message });
+    console.error('Analyze error:', err.message);
+    res.status(500).json({ error: 'Analysis failed: ' + err.message });
   }
 });
 
@@ -161,18 +209,21 @@ app.post('/api/save-to-sheets', async (req, res) => {
 
     const noteItems = data.items.filter(item => item.note && item.note.trim() !== '');
     const hasContactRequest = data.contact_request && (data.contact_request.requested === true || data.contact_request.requested === 'true');
+    const hasReplacementRequest = data.replacement_request && (data.replacement_request.requested === true || data.replacement_request.requested === 'true');
 
-    if (noteItems.length > 0 || hasContactRequest) {
+    if (noteItems.length > 0 || hasContactRequest || hasReplacementRequest) {
       const stored = data.orderKey ? imageStore.get(data.orderKey) : null;
-      sendNoteAlert(data.customer_name, deliveryDate, noteItems, stored?.buffer, stored?.mimeType, data.customerPhone, data.contact_request).catch(err =>
-        console.error('Note alert error:', err.message)
-      );
+      sendNoteAlert(
+        data.customer_name, deliveryDate, noteItems,
+        stored?.buffer, stored?.mimeType,
+        data.customerPhone, data.contact_request, data.replacement_request
+      ).catch(err => console.error('Alert error:', err.message));
     }
 
     res.json({ success: true, rows: rows.length });
   } catch (err) {
-    console.error('Sheets書き込みエラー:', err.message);
-    res.status(500).json({ error: 'Sheets書き込みに失敗しました: ' + err.message });
+    console.error('Sheets error:', err.message);
+    res.status(500).json({ error: 'Failed to save: ' + err.message });
   }
 });
 
