@@ -24,7 +24,25 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer, imageMimeType) {
+async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer, imageMimeType, phone) {
+  const itemList = noteItems.map(item =>
+    `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`
+  ).join('\n');
+  const phoneLine = phone ? `\nPhone: ${phone}` : '';
+  const mailOptions = {
+    from: process.env.GMAIL_USER,
+    to: process.env.GMAIL_USER,
+    subject: `⚠️ Order Note Alert — ${customerName}`,
+    text: `A note was included with the following order:\n\nCustomer: ${customerName}${phoneLine}\nDelivery Date: ${deliveryDate}\n\nItems with notes:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`,
+    attachments: imageBuffer ? [{
+      filename: `order-${customerName}-${deliveryDate}.jpg`,
+      content: imageBuffer,
+      contentType: imageMimeType || 'image/jpeg'
+    }] : []
+  };
+  await transporter.sendMail(mailOptions);
+  console.log('Note alert sent for:', customerName);
+}
   const itemList = noteItems.map(item =>
     `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`
   ).join('\n');
@@ -155,7 +173,7 @@ app.post('/api/save-to-sheets', async (req, res) => {
       console.log('orderKey received:', data.orderKey);
 
       const stored = data.orderKey ? imageStore.get(data.orderKey) : null;
-      sendNoteAlert(data.customer_name, deliveryDate, noteItems, stored?.buffer, stored?.mimeType).catch(err =>
+      sendNoteAlert(data.customer_name, deliveryDate, noteItems, stored?.buffer, stored?.mimeType, data.customerPhone).catch(err =>
         console.error('Note alert error:', err.message)
       );
     }
