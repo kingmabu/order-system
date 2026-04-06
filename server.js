@@ -24,16 +24,25 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer, imageMimeType, phone) {
-  const itemList = noteItems.map(item =>
-    `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`
-  ).join('\n');
+async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer, imageMimeType, phone, contactRequest) {
+  const itemList = noteItems.length > 0
+    ? noteItems.map(item => `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`).join('\n')
+    : '';
   const phoneLine = phone ? `\nPhone: ${phone}` : '';
+  const hasContact = contactRequest && (contactRequest.requested === true || contactRequest.requested === 'true');
+  let contactLine = '';
+  if (hasContact) {
+    contactLine = `\n\n📞 CONTACT REQUEST:\nMethod: ${contactRequest.method || 'Not specified'}\nMessage: ${contactRequest.message || 'No message'}`;
+  }
+  const subject = hasContact
+    ? `📞 Contact Request — ${customerName}`
+    : `⚠️ Order Note Alert — ${customerName}`;
+  const itemSection = itemList ? `\n\nItems with notes:\n${itemList}` : '';
   const mailOptions = {
     from: process.env.GMAIL_USER,
     to: process.env.GMAIL_USER,
-    subject: `⚠️ Order Note Alert — ${customerName}`,
-    text: `A note was included with the following order:\n\nCustomer: ${customerName}${phoneLine}\nDelivery Date: ${deliveryDate}\n\nItems with notes:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`,
+    subject,
+    text: `Customer: ${customerName}${phoneLine}\nDelivery Date: ${deliveryDate}${contactLine}${itemSection}\n\n---\nCalifornia Food Product, MY Inc.`,
     attachments: imageBuffer ? [{
       filename: `order-${customerName}-${deliveryDate}.jpg`,
       content: imageBuffer,
@@ -41,7 +50,7 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer,
     }] : []
   };
   await transporter.sendMail(mailOptions);
-  console.log('Note alert sent for:', customerName);
+  console.log('Alert sent for:', customerName);
 }
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
@@ -152,9 +161,11 @@ app.post('/api/save-to-sheets', async (req, res) => {
     });
 
     const noteItems = data.items.filter(item => item.note && item.note.trim() !== '');
-    if (noteItems.length > 0) {
+    const hasContactRequest = data.contact_request && (data.contact_request.requested === true || data.contact_request.requested === 'true');
+
+    if (noteItems.length > 0 || hasContactRequest) {
       const stored = data.orderKey ? imageStore.get(data.orderKey) : null;
-      sendNoteAlert(data.customer_name, deliveryDate, noteItems, stored?.buffer, stored?.mimeType, data.customerPhone).catch(err =>
+      sendNoteAlert(data.customer_name, deliveryDate, noteItems, stored?.buffer, stored?.mimeType, data.customerPhone, data.contact_request).catch(err =>
         console.error('Note alert error:', err.message)
       );
     }
