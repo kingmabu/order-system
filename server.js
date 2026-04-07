@@ -144,7 +144,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
       '    {',
       '      "sku": "SKU from leftmost column (1 letter + 3 digits, e.g. B002, C006, P021)",',
       '      "name": "item name from ITEMS column",',
-      '      "quantity": "number from QTY column, use 0 if blank",',
+      '      "quantity": "handwritten number from QTY column only. Use 0 if blank or not handwritten. Do NOT use numbers from WEIGHT/PACK column.",',
       '      "note": "content of NOTE column if filled, otherwise empty string",',
       '      "unit_price": 0',
       '    }',
