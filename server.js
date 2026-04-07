@@ -29,6 +29,8 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer,
     ? noteItems.map(item => `• ${item.sku} - ${item.name} (Qty: ${item.quantity}): "${item.note}"`).join('\n')
     : '';
   const phoneLine = phone ? `\nPhone: ${phone}` : '';
+  const now = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', dateStyle: 'medium', timeStyle: 'short' });
+  const submittedLine = `\nSubmitted: ${now} (PDT)`;
   const hasContact = contactRequest && (contactRequest.requested === true || contactRequest.requested === 'true');
   const hasReplacement = replacementRequest && (replacementRequest.requested === true || replacementRequest.requested === 'true');
 
@@ -63,7 +65,7 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer,
     from: process.env.GMAIL_USER,
     to: process.env.GMAIL_USER,
     subject,
-    text: `Customer: ${customerName}${phoneLine}\nDelivery Date: ${deliveryDate}${contactLine}${replacementLine}${itemSection}\n\n---\nCalifornia Food Product, MY Inc.`,
+    text: `Customer: ${customerName}${phoneLine}${submittedLine}\nDelivery Date: ${deliveryDate}${contactLine}${replacementLine}${itemSection}\n\n---\nCalifornia Food Product, MY Inc.`,
     attachments: imageBuffer ? [{
       filename: `order-${customerName}-${deliveryDate}.jpg`,
       content: imageBuffer,
