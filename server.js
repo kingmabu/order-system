@@ -135,7 +135,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     const mimeType = req.file.mimetype;
 
     const promptText = [
-      'Extract the following information from this order sheet image in JSON format only. Do not include any other text.',
+      'Extract the following information from this order sheet image in JSON format only. Do not include any other text. IMPORTANT: The QTY column contains handwritten numbers by customers. The WEIGHT column contains pre-printed numbers. Never confuse these two columns. Only read handwritten values for quantity.',
       '{',
       '  "customer_name": "value of Restaurant Name field",',
       '  "order_date": "order date in YYYY-MM-DD format, use today if unknown",',
@@ -144,7 +144,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
       '    {',
       '      "sku": "SKU from leftmost column (1 letter + 3 digits, e.g. B002, C006, P021)",',
       '      "name": "item name from ITEMS column",',
-      '      "quantity": "handwritten number from QTY column only. Use 0 if blank or not handwritten. Do NOT use numbers from WEIGHT/PACK column.",',
+      '      "quantity": "ONLY the handwritten number in the QTY column (4th column). The WEIGHT column (3rd column) contains pre-printed numbers - NEVER use these as quantity. If QTY column is blank or has no handwriting, use 0. Handwritten numbers look different from printed text.",',
       '      "note": "content of NOTE column if filled, otherwise empty string",',
       '      "unit_price": 0',
       '    }',
