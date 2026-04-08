@@ -198,6 +198,7 @@ async function analyze() {
     if (!json.success) throw new Error(json.error);
     extractedData = json.data;
     if (customerInfo) {
+      extractedData.customer_id = customerInfo.customerId;
       extractedData.customer_name = customerInfo.customerName;
       extractedData.qboSystemId = customerInfo.qboSystemId;
       extractedData.customerPhone = customerInfo.phone;
