@@ -116,6 +116,7 @@
 <script>
 let selectedFile = null;
 let extractedData = null;
+const customerCid = new URLSearchParams(window.location.search).get('cid') || '';
 
 function handleFile(e) {
   selectedFile = e.target.files[0];
@@ -180,6 +181,7 @@ function updateItem(index, field, value) {
 async function submit() {
   extractedData.customer_name = document.getElementById('customerName').value;
   extractedData.po_number = document.getElementById('poNumber').value;
+  extractedData.customer_id = customerCid;
 
   showStatus('loading', 'Google Sheets に保存中...');
 
