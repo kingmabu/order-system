@@ -99,7 +99,8 @@ app.get('/api/customer', async (req, res) => {
     const ownerPhone = row[10] || '';
     const rep1Phone = row[16] || '';
     const phone = managerPhone || ownerPhone || rep1Phone || '';
-    res.json({ success: true, customerId: row[0], customerName: row[1] || '', qboSystemId: row[3] || '', phone });
+    const customerId = String(row[0] || '').trim().padStart(3, '0');
+    res.json({ success: true, customerId: customerId, customerName: row[1] || '', qboSystemId: row[3] || '', phone });
   } catch (err) {
     console.error('Customer lookup error:', err.message);
     res.status(500).json({ error: 'Customer lookup failed: ' + err.message });
