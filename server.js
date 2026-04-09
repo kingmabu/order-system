@@ -205,13 +205,34 @@ app.post('/api/save-to-sheets', async (req, res) => {
     });
     const sheets = google.sheets({ version: 'v4', auth });
     const orderDate = new Date().toLocaleDateString('en-US', {timeZone: 'America/Los_Angeles'});
-    const rows = data.items.map(item => [orderDate, deliveryDate, data.customer_id || '', data.customer_name, item.sku, item.name, item.quantity, item.note || '']);
-    await sheets.spreadsheets.values.append({
+    const cidText = data.customer_id ? String(data.customer_id).padStart(3, '0') : '';
+    const rows = data.items.map(item => [orderDate, deliveryDate, cidText, data.customer_name, item.sku, item.name, item.quantity, item.note || '']);
+
+    // USER_ENTERED で追記（日付が正しく解釈される）
+    const appendRes = await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
       range: 'Sheet1!A:H',
       valueInputOption: 'USER_ENTERED',
+      includeValuesInResponse: true,
       resource: { values: rows }
     });
+
+    // C列（Customer ID）だけ RAW で上書き → 先頭ゼロを保持
+    if (cidText) {
+      const updatedRange = appendRes.data.updates.updatedRange; // e.g. "Sheet1!A5:H6"
+      const match = updatedRange.match(/!.*?(\d+):.*?(\d+)$/);
+      if (match) {
+        const startRow = parseInt(match[1]);
+        const endRow   = parseInt(match[2]);
+        const cidValues = Array(endRow - startRow + 1).fill([cidText]);
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: process.env.GOOGLE_SHEET_ID,
+          range: `Sheet1!C${startRow}:C${endRow}`,
+          valueInputOption: 'RAW',
+          resource: { values: cidValues }
+        });
+      }
+    }
 
     const noteItems = data.items.filter(item => item.note && item.note.trim() !== '');
     const hasContactRequest = data.contact_request && (data.contact_request.requested === true || data.contact_request.requested === 'true');
