@@ -191,9 +191,10 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
 
     res.json({ success: true, data: parsed });
   } catch (err) {
-    console.error('Analyze error:', err.message);
-    res.status(500).json({ error: 'Analysis failed: ' + err.message });
-  }
+  console.error('Analyze error:', err.message);
+  console.error('Analyze error detail:', JSON.stringify(err.response?.data));
+  res.status(500).json({ error: 'Analysis failed: ' + err.message });
+}
 });
 
 app.post('/api/save-to-sheets', async (req, res) => {
