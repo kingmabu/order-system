@@ -166,7 +166,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     const response = await axios.post(
       'https://api.anthropic.com/v1/messages',
       {
-        model: 'claude-opus-4-5',
+        model: 'claude-opus-4-6',
         max_tokens: 1024,
         messages: [{
           role: 'user',
