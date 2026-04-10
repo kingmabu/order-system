@@ -294,7 +294,8 @@ app.post('/api/create-invoice', async (req, res) => {
       lines.push({
         Amount: Number(item.quantity) * (qboItem.UnitPrice || 0),
         DetailType: 'SalesItemLineDetail',
-        Description: `${item.sku} - ${item.name}`,
+                Description: qboItem.Description || `${item.sku} - ${item.name}`,
+
         SalesItemLineDetail: { ItemRef: { value: qboItem.Id }, Qty: Number(item.quantity), UnitPrice: qboItem.UnitPrice || 0 }
       });
     }
