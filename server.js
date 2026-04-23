@@ -380,12 +380,11 @@ app.post('/api/create-bill', async (req, res) => {
 
     // Bill作成
     const billBody = {
-      VendorRef: { value: vendorId },
-      DocNumber: invoiceNumber,
-      TxnDate: invoiceDate,
-      DueDate: dueDate || invoiceDate,
-      Line: lines
-    };
+  VendorRef: { value: vendorId },
+  DocNumber: invoiceNumber,
+  TxnDate: invoiceDate,
+  Line: lines
+};
 
     const billRes = await axios.post(
       `${baseUrl}/v3/company/${realmId}/bill`,
