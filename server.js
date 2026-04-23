@@ -320,3 +320,85 @@ app.post('/api/create-invoice', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.post('/api/create-bill', async (req, res) => {
+  try {
+    const { vendorName, invoiceNumber, invoiceDate, dueDate, lineItems, grandTotal } = req.body;
+
+    const token = await getValidToken();
+    if (!token) return res.status(401).json({ error: 'QBO not connected. Please visit /auth/connect' });
+
+    const { accessToken, realmId } = token;
+    const baseUrl = process.env.QBO_ENV === 'production'
+      ? 'https://quickbooks.api.intuit.com'
+      : 'https://sandbox-quickbooks.api.intuit.com';
+
+    // Vendor検索（なければ作成）
+    const vendorQuery = await axios.get(
+      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Vendor WHERE DisplayName = '${vendorName}'`)}`,
+      { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
+    );
+    let vendorId;
+    const vendors = vendorQuery.data.QueryResponse?.Vendor;
+    if (vendors && vendors.length > 0) {
+      vendorId = vendors[0].Id;
+    } else {
+      const newVendor = await axios.post(
+        `${baseUrl}/v3/company/${realmId}/vendor`,
+        { DisplayName: vendorName },
+        { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
+      );
+      vendorId = newVendor.data.Vendor.Id;
+      console.log('New vendor created:', vendorName, vendorId);
+    }
+
+    // デフォルト経費アカウント取得（Cost of Goods Sold）
+    const accountName = process.env.QBO_EXPENSE_ACCOUNT || 'Cost of Goods Sold';
+    const accountQuery = await axios.get(
+      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Account WHERE Name = '${accountName}'`)}`,
+      { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
+    );
+    const accounts = accountQuery.data.QueryResponse?.Account;
+    if (!accounts || accounts.length === 0) {
+      return res.status(400).json({ error: `Account "${accountName}" not found in QBO. Set QBO_EXPENSE_ACCOUNT env variable.` });
+    }
+    const accountId = accounts[0].Id;
+
+    // Bill明細作成
+    const lines = lineItems
+      .filter(item => item.invoice_total > 0)
+      .map(item => ({
+        Amount: item.invoice_total,
+        DetailType: 'AccountBasedExpenseLineDetail',
+        Description: item.sku ? `${item.sku} - ${item.description}` : item.description,
+        AccountBasedExpenseLineDetail: {
+          AccountRef: { value: accountId },
+          BillableStatus: 'NotBillable'
+        }
+      }));
+
+    if (lines.length === 0) return res.status(400).json({ error: 'No line items to create bill.' });
+
+    // Bill作成
+    const billBody = {
+      VendorRef: { value: vendorId },
+      DocNumber: invoiceNumber,
+      TxnDate: invoiceDate,
+      DueDate: dueDate || invoiceDate,
+      Line: lines
+    };
+
+    const billRes = await axios.post(
+      `${baseUrl}/v3/company/${realmId}/bill`,
+      billBody,
+      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
+    );
+
+    const bill = billRes.data.Bill;
+    console.log('Bill created:', bill.Id, 'Vendor:', vendorName, 'Amount:', grandTotal);
+    res.json({ success: true, billId: bill.Id, docNumber: bill.DocNumber });
+
+  } catch (err) {
+    console.error('Create bill error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'Bill creation failed: ' + JSON.stringify(err.response?.data || err.message) });
+  }
+});
