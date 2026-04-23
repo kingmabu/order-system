@@ -333,8 +333,9 @@ app.post('/api/create-bill', async (req, res) => {
       : 'https://sandbox-quickbooks.api.intuit.com';
 
     // Vendor検索（なければ作成）
-    const vendorQuery = await axios.get(
-      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Vendor WHERE DisplayName = '${vendorName}'`)}`,
+    const escapedVendor = vendorName.replace(/'/g, "\\'");
+const vendorQuery = await axios.get(
+  `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Vendor WHERE DisplayName = '${escapedVendor}'`)}`,
       { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
     );
     let vendorId;
