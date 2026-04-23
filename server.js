@@ -3,6 +3,7 @@ const axios = require('axios');
 const multer = require('multer');
 const { google } = require('googleapis');
 const QBOAuth = require('./routes/qboAuth');
+const { getValidToken } = QBOAuth;
 const nodemailer = require('nodemailer');
 const path = require('path');
 
