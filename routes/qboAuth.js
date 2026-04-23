@@ -182,4 +182,13 @@ router.get('/status', (req, res) => {
   });
 });
 
+async function getValidToken() {
+  if (!tokenStore.accessToken) return null;
+  if (Date.now() > tokenStore.expiresAt - 5 * 60 * 1000) {
+    await refreshAccessToken();
+  }
+  return { accessToken: tokenStore.accessToken, realmId: tokenStore.realmId };
+}
+
 module.exports = router;
+module.exports.getValidToken = getValidToken;
