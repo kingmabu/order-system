@@ -309,6 +309,28 @@ app.post('/api/create-invoice', async (req, res) => {
 
     if (lines.length === 0) return res.status(400).json({ error: 'No matching SKUs found in QuickBooks.' });
 
+    // 同じ顧客×配達日の既存インボイスを削除（最新のみ残す）
+    const existingQuery = await axios.get(
+      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Invoice WHERE CustomerRef = '${customerId}' AND ShipDate = '${deliveryDate}'`)}`,
+      { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
+    );
+    const existingInvoices = existingQuery.data.QueryResponse.Invoice || [];
+    const skippedInvoices = [];
+    for (const old of existingInvoices) {
+      const isPaid = Number(old.Balance) < Number(old.TotalAmt);
+      if (isPaid) {
+        skippedInvoices.push(old.DocNumber);
+        console.log('Skipped paid invoice:', old.DocNumber);
+        continue;
+      }
+      await axios.post(
+        `${baseUrl}/v3/company/${realmId}/invoice?operation=delete`,
+        { Id: old.Id, SyncToken: old.SyncToken },
+        { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
+      );
+      console.log('Deleted existing invoice:', old.DocNumber);
+    }
+
     const invoice = await axios.post(
       `${baseUrl}/v3/company/${realmId}/invoice`,
       { CustomerRef: { value: customerId }, ShipDate: deliveryDate, TxnDate: deliveryDate, Line: lines },
@@ -317,7 +339,7 @@ app.post('/api/create-invoice', async (req, res) => {
 
     const invoiceNumber = invoice.data.Invoice.DocNumber;
     console.log('Invoice created:', invoiceNumber);
-    res.json({ success: true, invoiceId: invoice.data.Invoice.Id, invoiceNumber });
+    res.json({ success: true, invoiceId: invoice.data.Invoice.Id, invoiceNumber, skippedInvoices });
   } catch (err) {
     console.error('QBO error:', err.response?.data || err.message);
     res.status(500).json({ error: 'Invoice creation failed: ' + JSON.stringify(err.response?.data || err.message) });

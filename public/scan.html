@@ -112,6 +112,7 @@
     <h2>Order Submitted!</h2>
     <p>Your invoice has been created successfully.</p>
     <div class="invoice-num" id="invoiceNum"></div>
+    <div id="paidWarning" style="display:none; margin-top:12px; background:#fff8e1; color:#856404; border-radius:8px; padding:10px 14px; font-size:13px; text-align:left;"></div>
     <p style="margin-top:12px; font-size:13px; color:#888;" id="deliveryInfo"></p>
     <button class="btn btn-secondary" style="margin-top:24px" onclick="location.reload()">Submit Another Order</button>
   </div>
@@ -254,6 +255,13 @@ async function submitOrder() {
     const d = new Date(selectedDate + 'T12:00:00');
     document.getElementById('invoiceNum').textContent = 'Invoice #' + invoiceJson.invoiceNumber;
     document.getElementById('deliveryInfo').textContent = extractedData.customer_name + ' - Delivery: ' + DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+    const paidWarning = document.getElementById('paidWarning');
+    if (invoiceJson.skippedInvoices && invoiceJson.skippedInvoices.length > 0) {
+      paidWarning.style.display = 'block';
+      paidWarning.textContent = '⚠️ Invoice #' + invoiceJson.skippedInvoices.join(', #') + ' could not be deleted because payment has already been applied. Please update manually in QuickBooks.';
+    } else {
+      paidWarning.style.display = 'none';
+    }
     document.getElementById('main-screen').style.display = 'none';
     document.getElementById('successScreen').style.display = 'block';
     isSubmitting = false;
