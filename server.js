@@ -206,7 +206,13 @@ app.post('/api/save-to-sheets', async (req, res) => {
       scopes: ['https://www.googleapis.com/auth/spreadsheets']
     });
     const sheets = google.sheets({ version: 'v4', auth });
-    const orderDate = new Date().toLocaleDateString('en-US', {timeZone: 'America/Los_Angeles'});
+    const now = new Date();
+    const la = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    }).formatToParts(now).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+    const orderDate = `${la.year}/${la.month}/${la.day} ${la.hour}:${la.minute}:${la.second}`;
     const cidText = data.customer_id ? String(data.customer_id).padStart(3, '0') : '';
     const rows = data.items.map(item => [orderDate, deliveryDate, cidText, data.customer_name, item.sku, item.name, item.quantity, item.note || '']);
 
