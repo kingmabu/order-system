@@ -412,6 +412,7 @@ const vendorQuery = await axios.get(
   VendorRef: { value: vendorId },
   DocNumber: invoiceNumber,
   TxnDate: invoiceDate,
+  DueDate: dueDate || invoiceDate,
   Line: lines
 };
 
