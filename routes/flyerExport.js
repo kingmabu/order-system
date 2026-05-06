@@ -30,11 +30,30 @@ router.post('/export-pdf', async (req, res) => {
 
     await page.setContent(flyerHtml, { waitUntil: 'networkidle0', timeout: 60000 });
 
+    // PDF用の余白除去（body padding等を打ち消す）
+    await page.addStyleTag({
+      content: `
+        @page { margin: 0; }
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #fff !important;
+        }
+        .flyer {
+          margin: 0 !important;
+          box-shadow: none !important;
+        }
+      `
+    });
+
+    // フライヤーのアスペクト比 1080:1620 (= 2:3) に合わせ、
+    // 幅 8.5" / 高さ 12.75" のページに 1080px をぴったり収める
     const pdfData = await page.pdf({
       width: '8.5in',
-      height: '11in',
+      height: '12.75in',
       printBackground: true,
-      scale: 0.75
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      scale: 0.7556
     });
     const pdfBuffer = Buffer.isBuffer(pdfData) ? pdfData : Buffer.from(pdfData);
 
