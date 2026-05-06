@@ -50,7 +50,7 @@ router.post('/export-pdf', async (req, res) => {
     // 幅 8.5" / 高さ 12.75" のページに 1080px をぴったり収める
     const pdfData = await page.pdf({
       width: '8.5in',
-      height: '12.75in',
+      height: '11in',
       printBackground: true,
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
       scale: 0.7556
