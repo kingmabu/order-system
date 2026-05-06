@@ -14,6 +14,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use('/auth', QBOAuth);
+app.use('/api/flyer', require('./routes/flyerExport'));
 
 const imageStore = new Map();
 
