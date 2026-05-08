@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 
 router.post('/export-pdf', async (req, res) => {
   let browser = null;
@@ -16,13 +17,10 @@ router.post('/export-pdf', async (req, res) => {
 
     // Puppeteer 起動（Render.com 用フラグ必須）
     browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage'
-      ]
-    });
+  args: chromium.args,
+  executablePath: await chromium.executablePath(),
+  headless: chromium.headless
+});
 
     const page = await browser.newPage();
     const deviceScaleFactor = quality === 'print' ? 2 : 1;
