@@ -169,7 +169,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
       'https://api.anthropic.com/v1/messages',
       {
         model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        max_tokens: 2048,
         messages: [{
           role: 'user',
           content: [
