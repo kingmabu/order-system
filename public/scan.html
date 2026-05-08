@@ -48,7 +48,22 @@
   th { text-align: left; font-size: 11px; font-weight: 600; color: #888; padding: 6px 4px; border-bottom: 1px solid #eee; }
   td { padding: 8px 4px; border-bottom: 1px solid #f5f5f5; }
   .sku-badge { display: inline-block; background: #e8f5e9; color: #0F6E56; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
-  .qty-num { font-weight: 600; font-size: 15px; color: #1a1a1a; }
+  .qty-input {
+    width: 60px;
+    padding: 4px 8px;
+    border: 2px solid #1D9E75;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a1a;
+    text-align: center;
+    background: #f0faf6;
+    -moz-appearance: textfield;
+  }
+  .qty-input::-webkit-outer-spin-button,
+  .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .qty-input:focus { outline: none; border-color: #0F6E56; background: #e8f5e9; }
+  .edit-hint { font-size: 11px; color: #888; margin-bottom: 8px; text-align: right; }
   .success-screen { display: none; text-align: center; padding: 40px 20px; }
   .success-screen .check { width: 72px; height: 72px; background: #e8f5e9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
   .success-screen .check svg { width: 36px; height: 36px; stroke: #1D9E75; fill: none; stroke-width: 2.5; }
@@ -97,6 +112,7 @@
       <h3>Please Confirm Your Order</h3>
       <div class="delivery-confirm" id="deliveryConfirm"></div>
       <div class="customer-confirm" id="customerConfirm"></div>
+      <p class="edit-hint">✏️ Tap QTY to edit</p>
       <table>
         <thead><tr><th>SKU</th><th>Item</th><th style="text-align:right">Qty</th></tr></thead>
         <tbody id="itemsBody"></tbody>
@@ -218,8 +234,16 @@ function showResult(data) {
   document.getElementById('customerConfirm').textContent = 'Customer: ' + data.customer_name;
   const tbody = document.getElementById('itemsBody');
   tbody.innerHTML = '';
-  (data.items || []).forEach(function(item) {
-    tbody.innerHTML += '<tr><td><span class="sku-badge">' + (item.sku || '-') + '</span></td><td style="font-size:13px">' + item.name + '</td><td style="text-align:right"><span class="qty-num">' + item.quantity + '</span></td></tr>';
+  (data.items || []).forEach(function(item, idx) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><span class="sku-badge">' + (item.sku || '-') + '</span></td>' +
+      '<td style="font-size:13px">' + item.name + '</td>' +
+      '<td style="text-align:right">' +
+        '<input class="qty-input" type="number" min="0" value="' + item.quantity + '" ' +
+        'data-idx="' + idx + '" onchange="updateQty(this)" onclick="this.select()">' +
+      '</td>';
+    tbody.appendChild(tr);
   });
   if ((data.items || []).length === 0) {
     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#888;padding:16px">No items with quantity found</td></tr>';
@@ -227,8 +251,34 @@ function showResult(data) {
   document.getElementById('resultCard').style.display = 'block';
 }
 
+function updateQty(input) {
+  const idx = parseInt(input.getAttribute('data-idx'));
+  const newQty = parseInt(input.value) || 0;
+  if (extractedData && extractedData.items && extractedData.items[idx] !== undefined) {
+    extractedData.items[idx].quantity = newQty;
+    // QTYが0になったら行をグレーアウト
+    const tr = input.closest('tr');
+    if (newQty === 0) {
+      tr.style.opacity = '0.4';
+    } else {
+      tr.style.opacity = '1';
+    }
+  }
+}
+
 async function submitOrder() {
   if (isSubmitting) return;
+
+  // QTY 0のアイテムを除外して送信
+  const itemsToSubmit = (extractedData.items || []).filter(function(item) {
+    return Number(item.quantity) > 0;
+  });
+  if (itemsToSubmit.length === 0) {
+    showStatus('error', 'Please enter at least one quantity.');
+    return;
+  }
+  const dataToSubmit = Object.assign({}, extractedData, { items: itemsToSubmit });
+
   isSubmitting = true;
   document.getElementById('submitBtn').disabled = true;
   document.getElementById('submitBtn').textContent = 'Processing...';
@@ -237,7 +287,7 @@ async function submitOrder() {
     const sheetsRes = await fetch('/api/save-to-sheets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: extractedData, deliveryDate: selectedDate })
+      body: JSON.stringify({ data: dataToSubmit, deliveryDate: selectedDate })
     });
     const sheetsJson = await sheetsRes.json();
     if (!sheetsJson.success) throw new Error(sheetsJson.error);
@@ -248,13 +298,13 @@ async function submitOrder() {
     const invoiceRes = await fetch('/api/create-invoice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: extractedData, deliveryDate: selectedDate, accessToken: tokenJson.accessToken, realmId: tokenJson.realmId })
+      body: JSON.stringify({ data: dataToSubmit, deliveryDate: selectedDate, accessToken: tokenJson.accessToken, realmId: tokenJson.realmId })
     });
     const invoiceJson = await invoiceRes.json();
     if (!invoiceJson.success) throw new Error(invoiceJson.error);
     const d = new Date(selectedDate + 'T12:00:00');
     document.getElementById('invoiceNum').textContent = 'Invoice #' + invoiceJson.invoiceNumber;
-    document.getElementById('deliveryInfo').textContent = extractedData.customer_name + ' - Delivery: ' + DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+    document.getElementById('deliveryInfo').textContent = dataToSubmit.customer_name + ' - Delivery: ' + DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
     const paidWarning = document.getElementById('paidWarning');
     if (invoiceJson.skippedInvoices && invoiceJson.skippedInvoices.length > 0) {
       paidWarning.style.display = 'block';
