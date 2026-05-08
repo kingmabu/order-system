@@ -312,7 +312,7 @@ app.post('/api/create-invoice', async (req, res) => {
 
     // 同じ顧客×配達日の既存インボイスを削除（最新のみ残す）
     const existingQuery = await axios.get(
-      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Invoice WHERE CustomerRef = '${customerId}' AND TxnDate = '${deliveryDate}'`
+     `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Invoice WHERE CustomerRef = '${customerId}' AND TxnDate = '${deliveryDate}'`)}`,
       { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
     );
     const existingInvoices = existingQuery.data.QueryResponse.Invoice || [];
