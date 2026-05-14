@@ -68,10 +68,10 @@ QRコード注文システムがQBOにインボイスを自動作成する際、
   - J列・K列がスタンダード価格の正本
         ↓
 [Client Information] ← 列追加のみ
-  - Client list X列に Price Group を追加
+  - Client list W列に Price Group を追加
         ↓
 [order-system / server.js] ← 価格決定ロジック改修
-  - Item List J/K列 + Client list X列 + Custom Pricesを参照
+  - Item List J/K列 + Client list W列 + Custom Pricesを参照
   - 確定価格でQBOへインボイス送信
 ```
 
@@ -179,7 +179,7 @@ async function createInvoiceInQBO(invoiceData) {
 
 ### フェーズ2：Client Information 改修（開発用）
 
-6. **開発用** Client list の X列（Price Group）、Y列（Markup %）を手動で追加
+6. **開発用** Client list の W列（Price Group）、X列（Markup %）を追加（`apps-script/client-info-dev/setup_price_group.js` を実行）
 7. 全顧客の Price Group を **Standard / Group A / Individual** に分類
 
 ### フェーズ3：初期データ移行（開発用）
@@ -249,7 +249,7 @@ async function createInvoiceInQBO(invoiceData) {
 
 - [ ] Cost list に「価格管理」メニューが追加されている
 - [ ] Custom Prices / Custom Price Log / Cost Reference の3シートが作成されている
-- [ ] Client list X列に Price Group が設定されている（全顧客）
+- [ ] Client list W列に Price Group が設定されている（全顧客）
 - [ ] Individual の15社の個別価格が Custom Prices に登録されている
 - [ ] order-system が Custom Prices を参照して価格決定するようになっている
 - [ ] 量り売り（J列）/ 定量売り（K列）の判定が正しく動作している

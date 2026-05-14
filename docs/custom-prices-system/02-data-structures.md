@@ -224,12 +224,14 @@ const COST_REF_EXCLUDE = new Set([
 
 ### 5-2. 追加する列
 
-既存の列の右側に2列追加します。
+既存の列（A〜V）の右側に2列追加します。
 
 | 列 | ヘッダー | 型 | 必須 | 説明 |
 |---|---|---|---|---|
-| **X** | Price Group | Text | ✅ | `Standard` / `Group A` / `Individual` のいずれか |
-| **Y** | Markup % | Number | 条件付き | Group Aの場合：`1.5`、それ以外は空欄 |
+| **W** | Price Group | Text | ✅ | `Standard` / `Group A` / `Individual` のいずれか |
+| **X** | Markup % | Number | 条件付き | Group Aの場合：`1.5`、それ以外は空欄 |
+
+> **注：** 仕様書初版では X・Y列とされていたが、実際の Client list は V列まで使用しているため、空き列を作らないよう **W・X列** に変更（2026-05-14）。
 
 ### 5-3. Price Group の値
 
@@ -241,33 +243,33 @@ const COST_REF_EXCLUDE = new Set([
 
 ### 5-4. データ検証ルール
 
-X列（Price Group）には、**データの入力規則（プルダウン）**を設定：
+W列（Price Group）には、**データの入力規則（プルダウン）**を設定：
 
 ```
 入力候補: Standard, Group A, Individual
 他の値は拒否
 ```
 
-### 5-5. Y列（Markup %）の補足
+### 5-5. X列（Markup %）の補足
 
 - Group A の場合：`1.5` を入力（実際の計算では `1 + 1.5/100 = 1.015` を掛ける）
 - それ以外：空欄
-- **このY列は将来の拡張用**で、現状のロジックでは使わない（Group A = +1.5%固定）
+- **このX列は将来の拡張用**で、現状のロジックでは使わない（Group A = +1.5%固定）
 - 将来「Group B = +3%」などを追加する際に活用
 
 ### 5-6. 既存データへの影響
 
-- 既存の列（A〜W）には**一切手を加えない**
+- 既存の列（A〜V）には**一切手を加えない**
 - 既存の関数（onEdit等）には影響を与えない
 - 列追加のみなので、データ消失リスクなし
 
 ### 5-7. 初期データ投入方針
 
-X列に値を入れる方法（推奨順）：
+W列に値を入れる方法（推奨順）：
 
-1. **Group A の10社を特定** → 該当行のX列に `Group A` を入力
-2. **Individual の15社を特定** → 該当行のX列に `Individual` を入力
-3. **残りすべて** → X列に `Standard` を一括入力
+1. **Group A の10社を特定** → 該当行のW列に `Group A` を入力
+2. **Individual の15社を特定** → 該当行のW列に `Individual` を入力
+3. **残りすべて** → W列に `Standard` を一括入力
 
 具体的な顧客リストは Manabu さんの判断で投入します。
 
@@ -314,7 +316,7 @@ function getBasePrice(itemRow) {
 │   Client list                                               │
 │   ├ A列: Customer ID                                       │
 │   ├ ...                                                     │
-│   └ X列: Price Group ★追加                                 │
+│   └ W列: Price Group ★追加                                 │
 │         (Standard / Group A / Individual)                  │
 └─────────────────────────────────────────────────────────────┘
               ↓ Customer ID で結合
@@ -361,7 +363,7 @@ function getBasePrice(itemRow) {
    - 本体のマスターシート
 3. **Custom Price Log** を最後に作成
    - ログ用なので空のままでOK
-4. **Client list の X列・Y列追加**（フェーズ2で実施）
+4. **Client list の W列・X列追加**（フェーズ2で実施）
    - データ移行と並行して投入
 
 詳細な作成手順は **03-cost-list-changes.md** 参照。
@@ -377,8 +379,8 @@ function getBasePrice(itemRow) {
 - [ ] Custom Price の単位は商品タイプによって異なる（J列 or K列の単位）と理解した
 - [ ] Custom Price Log は追記のみで編集禁止だと理解した
 - [ ] Cost Reference の元データはベンダータブの G列（Each cost）だと理解した
-- [ ] Client list には X列（Price Group）・Y列（Markup %）を追加することを理解した
+- [ ] Client list には W列（Price Group）・X列（Markup %）を追加することを理解した
 - [ ] Item List は読み取り専用で、I列で量り売り/定量売りを判定すると理解した
-- [ ] Y列（Markup %）は将来拡張用で、現状は使わないと理解した
+- [ ] X列（Markup %）は将来拡張用で、現状は使わないと理解した
 
 OKならば **03-cost-list-changes.md** に進んでください。

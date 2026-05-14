@@ -222,8 +222,8 @@ async function loadAllCustomPrices() {
  * @return {Array} [{ customerId, customerName, priceGroup, markup }, ...]
  */
 async function loadAllClients() {
-  // A列〜Y列（25列）まで読む
-  const range = `${process.env.CLIENT_LIST_SHEET}!A2:Y`;
+  // A列〜X列（24列）まで読む
+  const range = `${process.env.CLIENT_LIST_SHEET}!A2:X`;
   const rows = await readRangeWithRetry(process.env.CLIENT_INFO_ID, range);
   return rows
     .filter(r => r[0]) // Customer ID 必須
@@ -231,8 +231,8 @@ async function loadAllClients() {
       customerId: normalizeId(r[0]),
       customerName: String(r[1] || '').trim(), // ※ B列が顧客名と仮定。実際の列に合わせて調整
       // ...他の既存列はここでは省略...
-      priceGroup: String(r[23] || 'Standard').trim(), // X列（0-indexed: 23）
-      markup: Number(r[24]) || 0,                       // Y列（0-indexed: 24）
+      priceGroup: String(r[22] || 'Standard').trim(), // W列（0-indexed: 22）
+      markup: Number(r[23]) || 0,                       // X列（0-indexed: 23）
     }));
 }
 
@@ -320,7 +320,7 @@ module.exports = {
 1. **Client list の列番号は要確認**
    - 上記コードでは `customerName` を **B列（index 1）** と仮定
    - 実際の Client list で異なる場合は調整が必要
-   - X列（Price Group）= index 23、Y列（Markup）= index 24 は確定
+   - W列（Price Group）= index 22、X列（Markup）= index 23 は確定
 
 2. **Item List のヘッダー行は4行目**
    - データは5行目から開始

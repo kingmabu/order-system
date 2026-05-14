@@ -39,10 +39,10 @@
 │   - K列：Unit Price - 定量売り商品の単価                   │
 │   - I列：✅ Unit? - チェックで定量売り、空欄で量り売り       │
 │                                                             │
-│  [Client Information] ← X列・Y列のみ追加                    │
+│  [Client Information] ← W列・X列のみ追加                    │
 │   - Client list シートに顧客マスター                        │
-│   - X列：Price Group（追加）                               │
-│   - Y列：Markup %（追加）                                  │
+│   - W列：Price Group（追加）                               │
+│   - X列：Markup %（追加）                                  │
 │                                                             │
 │  [Custom Prices] ← 新規（Cost list 内に作成）              │
 │   - Individual顧客×SKUの個別単価                            │
@@ -59,7 +59,7 @@
 注文受信
   ↓
 [Step 1] Customer ID から Price Group を取得
-  → Client list の X列を参照
+  → Client list の W列を参照
   → Standard / Group A / Individual のいずれか
   ↓
 [Step 2] 商品ごとに、その商品の販売単位を判定

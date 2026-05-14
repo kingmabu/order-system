@@ -466,11 +466,11 @@ const CLIENT_LIST_SHEET = 'Client list';
 const ITEM_LIST_ID = '14dKo33uLpVlHKF5RM6aM7oj-Y4lv1CnQbGQcpatrbfc'; // ← 開発時は開発用IDに変更
 const ITEM_LIST_SHEET = '商品一覧';
 
-// Client list の列番号（X列 = Price Group, Y列 = Markup %）
+// Client list の列番号（W列 = Price Group, X列 = Markup %）
 const CL_COL_CUSTOMER_ID = 1;  // A
 const CL_COL_CUSTOMER_NAME = 2; // B（必要に応じて調整）
-const CL_COL_PRICE_GROUP = 24; // X
-const CL_COL_MARKUP = 25;      // Y
+const CL_COL_PRICE_GROUP = 23; // W
+const CL_COL_MARKUP = 24;      // X
 
 // Item List の列番号
 const IL_COL_SKU = 1;          // A

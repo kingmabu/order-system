@@ -199,7 +199,7 @@
 | 対象 | 内容 |
 |---|---|
 | **本番 Cost list** | Apps Script 改修（既存ファイル4 + 新規ファイル3）|
-| **本番 Client Information** | Client list に X列・Y列を追加 + 全顧客分類 |
+| **本番 Client Information** | Client list に W列・X列を追加 + 全顧客分類 |
 | **本番 Cost list** | Custom Prices に CSV 投入（開発用と同じ内容）|
 | **`main` ブランチ** | `feature/custom-prices` をマージ |
 | **Render** | `.env.production` を設定し自動デプロイ |
@@ -222,13 +222,11 @@
 #### Step 2：本番 Client list に列追加
 
 1. 本番 Client Information を開く
-2. Client list シートのX列・Y列に手動でヘッダー追加：
-   - X1：`Price Group`
-   - Y1：`Markup %`
-3. X列に **データの入力規則（プルダウン）** を設定：
-   - 候補：`Standard`, `Group A`, `Individual`
-4. 全顧客の Price Group を分類：
-   - Group A の10社 → `Group A` + Y列に `1.5`
+2. `apps-script/client-info-dev/setup_price_group.js` を本番 Client Information の Apps Script にコピー＆ペーストし、`setupPriceGroupColumns` を実行：
+   - W1：`Price Group`（プルダウン: Standard / Group A / Individual）
+   - X1：`Markup %`
+3. 全顧客の Price Group を分類：
+   - Group A の10社 → `Group A` + X列に `1.5`
    - Individual の15社 → `Individual`
    - 残り → `Standard`
 
