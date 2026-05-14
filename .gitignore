@@ -1,5 +1,7 @@
 node_modules/
 .env
 .env.txt
+.env.development
+.env.production
 credentials.json
 tokens.json
