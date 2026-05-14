@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 13px;
+      padding: 16px;
+      color: #333;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: #4a86e8;
+    }
+    .mode-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #fff;
+      margin-left: 8px;
+    }
+    .mode-add { background: #34a853; }
+    .mode-edit { background: #fbbc04; color: #333; }
+    .mode-delete { background: #ea4335; }
+
+    label { display: block; margin: 10px 0 4px; font-weight: bold; }
+    select, input[type=text], input[type=number], textarea {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 13px;
+    }
+    .row { margin-bottom: 10px; }
+    .row.inline { display: flex; gap: 10px; }
+    .row.inline > div { flex: 1; }
+
+    .info-box {
+      background: #f6f8fa;
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 12px 0;
+      font-size: 12px;
+    }
+    .info-row { display: flex; justify-content: space-between; margin: 3px 0; }
+    .info-row .label { color: #666; }
+    .info-row .value { font-weight: bold; }
+
+    .warning {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 8px 12px;
+      margin: 10px 0;
+      font-size: 12px;
+    }
+    .error {
+      background: #f8d7da;
+      border-left: 4px solid #dc3545;
+      padding: 8px 12px;
+      margin: 10px 0;
+      font-size: 12px;
+      color: #721c24;
+    }
+    .success {
+      background: #d4edda;
+      border-left: 4px solid #28a745;
+      padding: 8px 12px;
+      margin: 10px 0;
+      font-size: 12px;
+      color: #155724;
+    }
+
+    .button-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+    }
+    button {
+      padding: 8px 18px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button.primary { background: #4a86e8; color: white; }
+    button.primary:hover { background: #3a76d8; }
+    button.danger { background: #ea4335; color: white; }
+    button.danger:hover { background: #d33a2c; }
+    button.secondary { background: #eee; color: #333; }
+    button.secondary:hover { background: #ddd; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+
+    .text-link {
+      color: #4a86e8;
+      cursor: pointer;
+      text-decoration: underline;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h2 id="title">価格管理 <span id="mode-tag" class="mode-tag mode-add">Add</span></h2>
+
+  <div id="messages"></div>
+
+  <div class="row">
+    <label>顧客</label>
+    <select id="customer">
+      <option value="">読み込み中…</option>
+    </select>
+    <span class="text-link" id="show-all-customers">他の顧客を追加（Individualに変更）</span>
+  </div>
+
+  <div class="row">
+    <label>SKU / 商品検索</label>
+    <input type="text" id="sku-search" placeholder="SKUまたは商品名で検索（例: B033, beef short）" />
+    <select id="sku" size="6" style="display:none; margin-top:6px;"></select>
+  </div>
+
+  <div class="info-box" id="info-box" style="display:none;">
+    <div class="info-row"><span class="label">商品名:</span><span class="value" id="info-item-name">-</span></div>
+    <div class="info-row"><span class="label">販売単位:</span><span class="value" id="info-unit">-</span></div>
+    <div class="info-row"><span class="label">仕入価格:</span><span class="value" id="info-cost">-</span></div>
+    <div class="info-row"><span class="label">標準販売価格:</span><span class="value" id="info-base">-</span></div>
+    <div class="info-row"><span class="label">粗利率:</span><span class="value" id="info-margin">-</span></div>
+    <div class="info-row" id="info-current-row" style="display:none;">
+      <span class="label">現在のCustom Price:</span><span class="value" id="info-current">-</span>
+    </div>
+  </div>
+
+  <div class="row" id="price-row">
+    <label id="price-label">新しい価格 ($)</label>
+    <input type="number" id="price" step="0.01" min="0" placeholder="例: 22.50" />
+  </div>
+
+  <div class="row">
+    <label>Note（任意）</label>
+    <textarea id="note" rows="2" placeholder="例: 2026年5月見直し"></textarea>
+  </div>
+
+  <div class="button-bar">
+    <button class="secondary" onclick="google.script.host.close()">キャンセル</button>
+    <button class="primary" id="submit" onclick="onSubmit()">保存</button>
+  </div>
+
+  <script>
+    let mode = 'Add';
+    let customers = [];
+    let items = [];
+    let customPrices = [];
+    let selectedCustomer = null;
+    let selectedItem = null;
+    let existingCustomPrice = null;
+    let suppressSearchInput = false; // ← 変更：候補クリック時のinputイベント抑制
+
+    // 初期化
+    window.onload = function() {
+      google.script.run.withSuccessHandler(setMode).getFormMode();
+    };
+
+    function setMode(m) {
+      mode = m;
+      const tag = document.getElementById('mode-tag');
+      tag.textContent = m;
+      tag.className = 'mode-tag mode-' + m.toLowerCase();
+      const submitBtn = document.getElementById('submit');
+      submitBtn.textContent = m === 'Add' ? '追加' : (m === 'Edit' ? '変更' : '削除');
+      submitBtn.className = m === 'Delete' ? 'danger' : 'primary';
+      if (m === 'Delete') {
+        document.getElementById('price-row').style.display = 'none';
+      }
+      loadCustomers();
+    }
+
+    function loadCustomers() {
+      if (mode === 'Edit' || mode === 'Delete') {
+        google.script.run.withSuccessHandler(allCps => {
+          customPrices = allCps;
+          // CustomPrices にある顧客のみを抽出
+          const idSet = new Set(allCps.map(c => c.customerId));
+          google.script.run.withSuccessHandler(all => {
+            customers = all.filter(c => idSet.has(c.id));
+            renderCustomers();
+          }).getAllCustomers();
+        }).getAllCustomPrices();
+      } else {
+        google.script.run.withSuccessHandler(list => {
+          customers = list;
+          renderCustomers();
+        }).getIndividualCustomers();
+      }
+
+      google.script.run.withSuccessHandler(list => { items = list; }).getAllItems();
+    }
+
+    function renderCustomers() {
+      const sel = document.getElementById('customer');
+      sel.innerHTML = '<option value="">-- 選択してください --</option>';
+      customers.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.name} (${c.id})`;
+        sel.appendChild(opt);
+      });
+      sel.onchange = onCustomerChange;
+    }
+
+    function onCustomerChange() {
+      const cid = document.getElementById('customer').value;
+      selectedCustomer = customers.find(c => c.id === cid) || null;
+      document.getElementById('sku-search').value = '';
+      document.getElementById('sku').style.display = 'none';
+      document.getElementById('info-box').style.display = 'none';
+      selectedItem = null;
+      existingCustomPrice = null;
+
+      if (mode === 'Edit' || mode === 'Delete') {
+        const skus = customPrices.filter(cp => cp.customerId === cid);
+        showSkuOptions(skus.map(cp => ({
+          sku: cp.sku,
+          name: cp.itemName,
+          isUnit: null,
+          basePrice: null
+        })));
+      }
+    }
+
+    document.getElementById('sku-search').addEventListener('input', function() {
+      if (suppressSearchInput) { suppressSearchInput = false; return; } // ← 変更：候補クリック直後はスキップ
+      const q = this.value.trim().toLowerCase();
+      if (!q) {
+        document.getElementById('sku').style.display = 'none';
+        return;
+      }
+      let candidates;
+      if (mode === 'Edit' || mode === 'Delete') {
+        const cid = selectedCustomer ? selectedCustomer.id : null;
+        candidates = customPrices.filter(cp => cp.customerId === cid).map(cp => ({
+          sku: cp.sku, name: cp.itemName
+        }));
+      } else {
+        candidates = items;
+      }
+      const filtered = candidates.filter(i =>
+        i.sku.toLowerCase().includes(q) ||
+        (i.name || '').toLowerCase().includes(q)
+      ).slice(0, 30);
+      showSkuOptions(filtered);
+    });
+
+    function showSkuOptions(list) {
+      const sel = document.getElementById('sku');
+      sel.innerHTML = '';
+      list.forEach(i => {
+        const opt = document.createElement('option');
+        opt.value = i.sku;
+        opt.textContent = `${i.sku} - ${i.name}`;
+        sel.appendChild(opt);
+      });
+      sel.style.display = list.length > 0 ? 'block' : 'none';
+      sel.onchange = onSkuChange;
+      // 候補クリック時：検索欄に反映 + onSkuChange 発火                                    // ← 変更
+      sel.onclick = function() {                                                          // ← 変更
+        if (!sel.value) return;                                                            // ← 変更
+        const opt = sel.options[sel.selectedIndex];                                        // ← 変更
+        if (!opt) return;                                                                  // ← 変更
+        suppressSearchInput = true;                                                        // ← 変更
+        document.getElementById('sku-search').value = opt.textContent;                     // ← 変更
+        onSkuChange();                                                                     // ← 変更
+      };                                                                                   // ← 変更
+    }
+
+    function onSkuChange() {
+      const sku = document.getElementById('sku').value;
+      if (!sku || !selectedCustomer) return;
+      // 候補リストを非表示                                                              // ← 変更
+      document.getElementById('sku').style.display = 'none';                            // ← 変更
+      // 商品マスター取得
+      const itemFull = items.find(i => i.sku === sku);
+      selectedItem = itemFull || null;
+      // 既存Custom Price検索
+      google.script.run.withSuccessHandler(cp => {
+        existingCustomPrice = cp;
+        renderInfo();
+      }).findCustomPrice(selectedCustomer.id, sku);
+
+      // コスト情報取得
+      google.script.run
+        .withSuccessHandler(cost => { renderCost(cost); })
+        .withFailureHandler(err => { renderCost(null); })
+        .getCostForSku(sku);
+    }
+
+    function renderInfo() {
+      if (!selectedItem) {
+        document.getElementById('info-box').style.display = 'none';
+        return;
+      }
+      document.getElementById('info-box').style.display = 'block';
+      document.getElementById('info-item-name').textContent = selectedItem.name || '-';
+      document.getElementById('info-unit').textContent = selectedItem.isUnit ? '定量売り（箱単価）' : '量り売り（ポンド単価）';
+      document.getElementById('info-base').textContent = '$' + (selectedItem.basePrice || 0).toFixed(2);
+      if (existingCustomPrice) {
+        document.getElementById('info-current-row').style.display = 'flex';
+        document.getElementById('info-current').textContent = '$' + existingCustomPrice.price.toFixed(2);
+        if (mode === 'Edit') {
+          document.getElementById('price').value = existingCustomPrice.price;
+        }
+      } else {
+        document.getElementById('info-current-row').style.display = 'none';
+      }
+    }
+
+    function renderCost(cost) {
+      if (!cost || !cost.eachCost) {
+        document.getElementById('info-cost').textContent = '-';
+        document.getElementById('info-margin').textContent = '-';
+        return;
+      }
+      document.getElementById('info-cost').textContent = '$' + Number(cost.eachCost).toFixed(2);
+      if (selectedItem && selectedItem.basePrice > 0) {
+        const margin = ((selectedItem.basePrice - cost.eachCost) / selectedItem.basePrice * 100).toFixed(1);
+        document.getElementById('info-margin').textContent = margin + '%';
+      }
+    }
+
+    function onSubmit() {
+      if (!selectedCustomer) { showMsg('顧客を選択してください', 'error'); return; }
+      const sku = document.getElementById('sku').value;
+      if (!sku) { showMsg('SKUを選択してください', 'error'); return; }
+      const note = document.getElementById('note').value.trim();
+
+      if (mode === 'Delete') {
+        if (!confirm(`削除すると標準価格に戻ります。よろしいですか？\n\n${selectedCustomer.name} × ${sku}`)) return;
+        google.script.run.withSuccessHandler(onResult).deleteCustomPrice({
+          customerId: selectedCustomer.id,
+          sku: sku,
+          note: note
+        });
+        return;
+      }
+
+      const price = parseFloat(document.getElementById('price').value);
+      if (isNaN(price) || price <= 0) {
+        showMsg('価格は0より大きい数値で入力してください', 'error');
+        return;
+      }
+
+      // 高額警告
+      if (price >= 1000) {
+        if (!confirm(`価格 $${price.toFixed(2)} が高額です。本当によろしいですか？`)) return;
+      }
+      // 赤字売り警告
+      const costText = document.getElementById('info-cost').textContent;
+      const costMatch = costText.match(/\$([\d.]+)/);
+      if (costMatch) {
+        const cost = parseFloat(costMatch[1]);
+        if (price < cost) {
+          if (!confirm(`仕入価格 $${cost.toFixed(2)} を下回ります（赤字売り）。本当によろしいですか？`)) return;
+        }
+      }
+
+      const data = {
+        customerId: selectedCustomer.id,
+        sku: sku,
+        price: price,
+        note: note
+      };
+
+      if (mode === 'Add') {
+        google.script.run.withSuccessHandler(onResult).addCustomPrice(data);
+      } else if (mode === 'Edit') {
+        google.script.run.withSuccessHandler(onResult).changeCustomPrice(data);
+      }
+    }
+
+    function onResult(res) {
+      if (res.success) {
+        showMsg(res.message, 'success');
+        setTimeout(() => google.script.host.close(), 1200);
+      } else if (res.duplicate) {
+        if (confirm(res.message + '\n\n変更画面に切り替えますか？')) {
+          mode = 'Edit';
+          setMode('Edit');
+        }
+      } else {
+        showMsg(res.message, 'error');
+      }
+    }
+
+    function showMsg(text, type) {
+      const box = document.getElementById('messages');
+      box.innerHTML = `<div class="${type}">${text}</div>`;
+    }
+
+    document.getElementById('show-all-customers').onclick = function() {
+      google.script.run.withSuccessHandler(all => {
+        const q = prompt('Individualに変更したい顧客のCustomer IDまたは名前（部分一致可）を入力:'); // ← 変更
+        if (!q) return;                                                                            // ← 変更
+        const qLower = q.toLowerCase();                                                            // ← 変更
+        // 完全一致 or 部分一致を全件抽出                                                              // ← 変更
+        const matches = all.filter(c =>                                                            // ← 変更
+          c.id === q ||                                                                            // ← 変更
+          c.name.toLowerCase().includes(qLower)                                                    // ← 変更
+        );                                                                                         // ← 変更
+        if (matches.length === 0) { alert('顧客が見つかりません'); return; }                          // ← 変更
+
+        // 複数候補があれば番号で選択                                                                  // ← 変更
+        let target;                                                                                // ← 変更
+        if (matches.length === 1) {                                                                // ← 変更
+          target = matches[0];                                                                     // ← 変更
+        } else {                                                                                   // ← 変更
+          const listText = matches.map((c, i) =>                                                   // ← 変更
+            `${i + 1}. ${c.name} (${c.id}) [${c.group}]`                                           // ← 変更
+          ).join('\n');                                                                            // ← 変更
+          const sel = prompt(                                                                      // ← 変更
+            `${matches.length}件の候補があります。番号を入力してください:\n\n${listText}`              // ← 変更
+          );                                                                                       // ← 変更
+          if (sel === null) return;                                                                // ← 変更
+          const idx = parseInt(sel, 10) - 1;                                                       // ← 変更
+          if (isNaN(idx) || idx < 0 || idx >= matches.length) {                                    // ← 変更
+            alert('無効な選択です');                                                                  // ← 変更
+            return;                                                                                // ← 変更
+          }                                                                                        // ← 変更
+          target = matches[idx];                                                                   // ← 変更
+        }                                                                                          // ← 変更
+
+        if (target.group === 'Individual') { alert('既にIndividualです'); return; }
+        if (!confirm(`${target.name} (${target.id}) をIndividualに変更しますか？`)) return;
+        google.script.run.withSuccessHandler(res => {
+          if (res.success) { alert(res.message); loadCustomers(); }
+          else alert(res.message);
+        }).changeCustomerToIndividual(target.id);
+      }).getAllCustomers();
+    };
+  </script>
+</body>
+</html>
