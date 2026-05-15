@@ -4,6 +4,8 @@ const multer = require('multer');
 const { google } = require('googleapis');
 const QBOAuth = require('./routes/qboAuth');
 const { getValidToken } = QBOAuth;
+const { loadAllDataSources } = require('./routes/sheets-client'); // ← 変更
+const { determinePricesForOrder } = require('./routes/pricing'); // ← 変更
 const nodemailer = require('nodemailer');
 const path = require('path');
 
@@ -268,7 +270,9 @@ app.post('/api/create-invoice', async (req, res) => {
     const baseUrl = process.env.QBO_ENV === 'production'
       ? 'https://quickbooks.api.intuit.com'
       : 'https://sandbox-quickbooks.api.intuit.com';
+    const dryRun = process.env.QBO_MODE === 'dry-run'; // ← 変更
 
+    // ===== ① Customer ID 解決（既存ロジック維持） =====
     let customerId = data.qboSystemId || null;
     if (!customerId) {
       const customerQuery = await axios.get(
@@ -279,37 +283,103 @@ app.post('/api/create-invoice', async (req, res) => {
       if (customers && customers.length > 0) {
         customerId = customers[0].Id;
       } else {
-        const newCustomer = await axios.post(
-          `${baseUrl}/v3/company/${realmId}/customer`,
-          { DisplayName: data.customer_name },
-          { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
-        );
-        customerId = newCustomer.data.Customer.Id;
+        if (dryRun) {
+          customerId = 'DRY-RUN-NEW-CUSTOMER';
+          console.log(`[DRY-RUN] Would create new QBO Customer: ${data.customer_name}`);
+        } else {
+          const newCustomer = await axios.post(
+            `${baseUrl}/v3/company/${realmId}/customer`,
+            { DisplayName: data.customer_name },
+            { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
+          );
+          customerId = newCustomer.data.Customer.Id;
+        }
       }
     }
 
-    const lines = [];
-    for (const item of data.items) {
-      if (!item.quantity || Number(item.quantity) <= 0 || !item.sku) continue;
-      const itemRes = await axios.get(
-        `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Item WHERE Sku = '${item.sku}'`)}`,
-        { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
-      );
-      const qboItems = itemRes.data.QueryResponse.Item;
-      if (!qboItems || qboItems.length === 0) { console.log(`SKU not found: ${item.sku}`); continue; }
-      const qboItem = qboItems[0];
-      lines.push({
-        Amount: Number(item.quantity) * (qboItem.UnitPrice || 0),
-        DetailType: 'SalesItemLineDetail',
-                Description: qboItem.Description || `${item.sku} - ${item.name}`,
+    // ===== ② 注文SKU抽出（数量0のもの除外） =====
+    const orderItems = (data.items || [])
+      .filter(it => it.sku && Number(it.quantity) > 0)
+      .map(it => ({ sku: String(it.sku).trim(), qty: Number(it.quantity), name: it.name || '' }));
+    if (orderItems.length === 0) {
+      return res.status(400).json({ error: 'No items with positive quantity.' });
+    }
 
-        SalesItemLineDetail: { ItemRef: { value: qboItem.Id }, Qty: Number(item.quantity), UnitPrice: qboItem.UnitPrice || 0 }
+    // ===== ③ Sheets一括取得 → 価格決定（Pricing Rules を JS で再現） =====
+    const dataSources = await loadAllDataSources();
+    const pricedItems = determinePricesForOrder(
+      { customerId: data.customer_id || data.customerId, items: orderItems },
+      dataSources
+    );
+
+    // 警告ログ（Custom Price未登録/SKU未登録/Customer未登録）
+    const warnings = pricedItems.filter(p => p.warning).map(p => p.warning);
+    if (warnings.length > 0) {
+      console.warn('[create-invoice] price decision warnings:', warnings);
+    }
+
+    // ===== ④ QBOアイテムIDを一括取得（SKU IN (...) で1リクエスト） =====
+    const skuList = pricedItems.filter(p => p.source !== 'error').map(p => p.sku);
+    const skuQuoted = skuList.map(s => `'${s.replace(/'/g, "\\'")}'`).join(',');
+    const itemQuery = await axios.get(
+      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT Id, Sku, Description FROM Item WHERE Sku IN (${skuQuoted})`)}`,
+      { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
+    );
+    const qboItemsBySku = new Map();
+    for (const qi of (itemQuery.data.QueryResponse?.Item || [])) {
+      qboItemsBySku.set(String(qi.Sku || '').trim(), qi);
+    }
+
+    // ===== ⑤ Lineを構築（UnitPrice は計算済み finalPrice を必ず使用） =====
+    const lines = [];
+    const skippedSkus = [];
+    for (const p of pricedItems) {
+      if (p.source === 'error') { skippedSkus.push(p.sku); continue; }
+      const qboItem = qboItemsBySku.get(p.sku);
+      if (!qboItem) {
+        console.log(`SKU not found in QBO: ${p.sku}`);
+        skippedSkus.push(p.sku);
+        continue;
+      }
+      const desc = `${p.sku} - ${p.item.itemName}` + (p.source === 'custom' ? ' [Custom Price]' : '');
+      lines.push({
+        Amount: p.lineTotal,
+        DetailType: 'SalesItemLineDetail',
+        Description: qboItem.Description || desc,
+        SalesItemLineDetail: { ItemRef: { value: qboItem.Id }, Qty: p.qty, UnitPrice: p.finalPrice },
       });
     }
 
     if (lines.length === 0) return res.status(400).json({ error: 'No matching SKUs found in QuickBooks.' });
 
-    // 同じ顧客×配達日の既存インボイスを削除（最新のみ残す）
+    // ===== ⑥ PrivateNote（価格ソース内訳を記録） =====
+    const privateNote = pricedItems
+      .filter(p => p.source !== 'error')
+      .map(p => {
+        let line = `${p.sku}: ${p.source} $${p.finalPrice}`;
+        if (p.source === 'custom' && p.note) line += ` (${p.note})`;
+        return line;
+      })
+      .join('\n');
+
+    // ===== ⑦ dry-run: ここで終わり（既存削除も実Invoice作成もスキップ） =====
+    if (dryRun) {
+      console.log('[DRY-RUN] Would create QBO Invoice:');
+      console.log(JSON.stringify({
+        CustomerRef: { value: customerId },
+        ShipDate: deliveryDate, TxnDate: deliveryDate,
+        Line: lines, PrivateNote: privateNote,
+      }, null, 2));
+      return res.json({
+        success: true, dryRun: true,
+        mockInvoiceId: 'DRY-' + Date.now(),
+        skippedInvoices: [], skippedSkus,
+        warnings,
+        pricedItems: pricedItems.map(p => ({ sku: p.sku, source: p.source, finalPrice: p.finalPrice })),
+      });
+    }
+
+    // ===== ⑧ 既存インボイスを削除（未払いのみ。支払い済みはスキップ） =====
     const existingQuery = await axios.get(
       `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Invoice WHERE CustomerRef = '${customerId}' AND ShipDate = '${deliveryDate}'`)}`,
       { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
@@ -331,15 +401,26 @@ app.post('/api/create-invoice', async (req, res) => {
       console.log('Deleted existing invoice:', old.DocNumber);
     }
 
+    // ===== ⑨ Invoice 作成 =====
     const invoice = await axios.post(
       `${baseUrl}/v3/company/${realmId}/invoice`,
-      { CustomerRef: { value: customerId }, ShipDate: deliveryDate, TxnDate: deliveryDate, Line: lines },
+      {
+        CustomerRef: { value: customerId },
+        ShipDate: deliveryDate, TxnDate: deliveryDate,
+        Line: lines, PrivateNote: privateNote,
+      },
       { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
     );
 
     const invoiceNumber = invoice.data.Invoice.DocNumber;
-    console.log('Invoice created:', invoiceNumber);
-    res.json({ success: true, invoiceId: invoice.data.Invoice.Id, invoiceNumber, skippedInvoices });
+    console.log('Invoice created:', invoiceNumber, '/ warnings:', warnings.length, '/ skipped SKUs:', skippedSkus.length);
+    res.json({
+      success: true,
+      invoiceId: invoice.data.Invoice.Id, invoiceNumber,
+      skippedInvoices, skippedSkus,
+      warnings,
+      pricedItems: pricedItems.map(p => ({ sku: p.sku, source: p.source, finalPrice: p.finalPrice })),
+    });
   } catch (err) {
     console.error('QBO error:', err.response?.data || err.message);
     res.status(500).json({ error: 'Invoice creation failed: ' + JSON.stringify(err.response?.data || err.message) });

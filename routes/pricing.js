@@ -1,0 +1,136 @@
+/**
+ * routes/pricing.js - 価格決定ロジック（純粋関数）
+ *
+ * Custom Prices System Phase 3。
+ * Customer ID + SKU + 商品データ + Custom Prices + Client list を入力に、
+ * インボイス単価を決定する純粋関数群。
+ *
+ * 価格ルール（QBO本番Pricing Rulesと一致させる）:
+ *   - Standard      → Item List ベース価格そのまま
+ *   - Group A (12社) → ベース価格 × 1.020（+2.00%）
+ *   - Individual    → Custom Prices優先 / 未登録ならStandardフォールバック
+ */
+
+const { normalizeId } = require('./sheets-client');
+
+const GROUP_A_MARKUP = 0.020; // +2.00%（QBO本番 Pricing Rules: Jinya Group = Fixed 2.00%）
+
+/**
+ * 価格を小数点以下2桁に丸める
+ */
+function roundPrice(price) {
+  return Math.round(price * 100) / 100;
+}
+
+/**
+ * 1つのSKUに対する価格決定（純粋関数）
+ *
+ * @param {Object} params
+ * @param {string} params.customerId - Customer ID（正規化前でもOK）
+ * @param {string} params.sku - SKU（例: 'B033'）
+ * @param {Array} params.clients - Client list 全件（loadAllClients の戻り値）
+ * @param {Array} params.items - Item List 全件（loadAllItems の戻り値）
+ * @param {Array} params.customPrices - Custom Prices 全件（loadAllCustomPrices の戻り値）
+ * @return {Object} {
+ *   sku, customerId, priceGroup, basePrice, finalPrice, isUnit,
+ *   source: 'custom' | 'group-a' | 'standard' | 'fallback' | 'error',
+ *   item, warning, note
+ * }
+ */
+function determinePrice({ customerId, sku, clients, items, customPrices }) {
+  const normId = normalizeId(customerId);
+  const skuKey = String(sku || '').trim();
+  const item = items.find(i => i.sku === skuKey);
+
+  if (!item) {
+    return {
+      sku: skuKey,
+      customerId: normId,
+      finalPrice: 0,
+      source: 'error',
+      warning: `SKU ${skuKey} が Item List に見つかりません`,
+    };
+  }
+
+  const client = clients.find(c => c.customerId === normId);
+  const priceGroup = client ? client.priceGroup : 'Standard';
+  const basePrice = item.basePrice;
+
+  // Individual → Custom Prices検索
+  if (priceGroup === 'Individual') {
+    const cp = customPrices.find(p => p.customerId === normId && p.sku === skuKey);
+    if (cp && cp.price > 0) {
+      return {
+        sku: skuKey, customerId: normId, priceGroup,
+        basePrice, finalPrice: roundPrice(cp.price),
+        isUnit: item.isUnit,
+        source: 'custom',
+        item,
+        note: cp.note || null,
+      };
+    }
+    // 見つからない → Standard扱いでフォールバック
+    return {
+      sku: skuKey, customerId: normId, priceGroup,
+      basePrice, finalPrice: roundPrice(basePrice),
+      isUnit: item.isUnit,
+      source: 'fallback',
+      item,
+      warning: `Customer ${normId} は Individual ですが、SKU ${skuKey} の Custom Price が未登録のため Standard を使用`,
+    };
+  }
+
+  // Group A → +2.00%
+  if (priceGroup === 'Group A') {
+    const adjusted = roundPrice(basePrice * (1 + GROUP_A_MARKUP));
+    return {
+      sku: skuKey, customerId: normId, priceGroup,
+      basePrice, finalPrice: adjusted,
+      isUnit: item.isUnit,
+      source: 'group-a',
+      item,
+    };
+  }
+
+  // Standard
+  return {
+    sku: skuKey, customerId: normId, priceGroup: 'Standard',
+    basePrice, finalPrice: roundPrice(basePrice),
+    isUnit: item.isUnit,
+    source: 'standard',
+    item,
+  };
+}
+
+/**
+ * 注文全体（複数SKU）の価格決定をまとめて実行
+ *
+ * @param {Object} order - { customerId, items: [{ sku, qty }, ...] }
+ * @param {Object} dataSources - { clients, items, customPrices }
+ * @return {Array} [{ sku, qty, ...determinedPrice, lineTotal }, ...]
+ */
+function determinePricesForOrder(order, dataSources) {
+  const { customerId, items: orderItems } = order;
+  const { clients, items, customPrices } = dataSources;
+
+  return (orderItems || []).map(orderItem => {
+    const qty = Number(orderItem.qty || orderItem.quantity || 0);
+    const decided = determinePrice({
+      customerId,
+      sku: orderItem.sku,
+      clients, items, customPrices,
+    });
+    return {
+      ...decided,
+      qty,
+      lineTotal: roundPrice(decided.finalPrice * qty),
+    };
+  });
+}
+
+module.exports = {
+  determinePrice,
+  determinePricesForOrder,
+  roundPrice,
+  GROUP_A_MARKUP,
+};
