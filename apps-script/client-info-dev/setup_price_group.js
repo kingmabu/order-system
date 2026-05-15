@@ -12,7 +12,7 @@
  *
  * 仕様:
  *   - W列: Price Group（プルダウン: Standard / Group A / Individual）
- *   - X列: Markup %（Group Aのみ 1.5、それ以外は空欄。将来拡張用）
+ *   - X列: Markup %（Group Aのみ 2.00、それ以外は空欄。将来拡張用） // ← 変更
  */
 
 // ============================================================
@@ -77,16 +77,16 @@ function setupPriceGroupColumns() {
   sheet.setColumnWidth(PG_COL_MARKUP, 100);
 
   Logger.log('✅ セットアップ完了');
-  Logger.log('次のステップ: Group A 10社 / Individual 15社 の行のW列に値を入力してください。残りは "Standard" で一括埋めできます。');
+  Logger.log('次のステップ: Group A 12社 / Individual 15社 の行のW列に値を入力してください。残りは "Standard" で一括埋めできます。'); // ← 変更
 
   SpreadsheetApp.getUi().alert(
     'セットアップ完了',
     `W列 (Price Group) と X列 (Markup %) を追加しました。\n\n` +
     `次のステップ:\n` +
-    `1. Group A の10社の行のW列に "Group A" を選択\n` +
+    `1. Group A の12社の行のW列に "Group A" を選択\n` + // ← 変更
     `2. Individual の15社の行のW列に "Individual" を選択\n` +
     `3. 残りの行に "Standard" を一括入力\n` +
-    `4. Group A の行は X列に 1.5 を入力`,
+    `4. Group A の行は X列に 2.00 を入力`, // ← 変更
     SpreadsheetApp.getUi().ButtonSet.OK
   );
 }

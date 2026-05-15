@@ -85,7 +85,7 @@
 ローカルで `node server.js` を起動して curl でテスト：
 
 - [ ] Standard顧客の注文 → ベース価格（J列 or K列）が反映される
-- [ ] Group A顧客の注文 → ベース価格 × 1.015 が反映される
+- [ ] Group A顧客の注文 → ベース価格 × 1.020 が反映される
 - [ ] Individual顧客（Custom Price あり）→ Custom Price が反映される
 - [ ] Individual顧客（Custom Price なし）→ ベース価格にフォールバック
 - [ ] フォールバック時に warning メッセージが出る
@@ -130,7 +130,7 @@
 2. Price Group を最初「Standard」に設定
 3. server.js から TEST RESTAURANT で注文 → Standard価格で処理されることを確認
 4. Price Group を「Group A」に変更
-5. 同じ注文で +1.5% が適用されることを確認
+5. 同じ注文で +2.0% が適用されることを確認
 6. Price Group を「Individual」に変更
 7. Custom Prices に1件追加（例：B033 → $22.50）
 8. 同じ注文で Custom Price が適用されることを確認
@@ -226,7 +226,7 @@
    - W1：`Price Group`（プルダウン: Standard / Group A / Individual）
    - X1：`Markup %`
 3. 全顧客の Price Group を分類：
-   - Group A の10社 → `Group A` + X列に `1.5`
+   - Group A の12社 → `Group A` + X列に `2.0`
    - Individual の15社 → `Individual`
    - 残り → `Standard`
 
@@ -305,7 +305,7 @@ ALERT_EMAIL=ordercfp@gmail.com
 2. 同じテスト注文
 3. QBO のインボイスを確認
 
-- [ ] 単価が Item List の値 × 1.015 になっている
+- [ ] 単価が Item List の値 × 1.020 になっている
 - [ ] 小数点以下2桁で丸められている
 - [ ] PrivateNote に「group-a」と記録
 
@@ -405,13 +405,13 @@ ALERT_EMAIL=ordercfp@gmail.com
 
 ### 8-1. 展開手順
 
-1. **Group A の10社**（+1.5%）も自作システム経由に切り替え
+1. **Group A の12社**（+2.00%）も自作システム経由に切り替え
 2. **Standard顧客**も自作システム経由に切り替え
 3. **Chocoは並行稼働で残しておく**（緊急時の保険）
 
 ### 8-2. モニタリング項目（2週間）
 
-- [ ] Group A顧客で +1.5% が正しく反映されているか
+- [ ] Group A顧客で +2.00% が正しく反映されているか
 - [ ] Standard顧客で標準価格が反映されているか
 - [ ] エラー率が許容範囲（1日1件以下）
 - [ ] 顧客クレームがないか

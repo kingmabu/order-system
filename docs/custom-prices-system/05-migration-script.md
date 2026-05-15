@@ -15,12 +15,12 @@ Individual分類の15社の個別単価を、QBO側の **PriceLevel エンティ
 ### スコープ
 
 - 対象：**Per item 形式（商品ごとに固定単価）の Price Level のみ**
-- 対象外：Fixed % 形式（Group Aの+1.5%等）→ こちらはロジックで処理するため移行不要
+- 対象外：Fixed % 形式（Group Aの+2.00%等）→ こちらはロジックで処理するため移行不要
 - **使い捨てスクリプト**：1回実行したら破棄前提（ただし再実行可能な設計にする）
 
 ### 前提
 
-- Group A の10社は Fixed % で QBO 登録されている → 移行スコープ外
+- Group A の12社（Jinya Group）は Fixed +2.00% で QBO 登録されている → 移行スコープ外
 - Individual の15社は Per item で QBO 登録されている → これを取得
 
 ---

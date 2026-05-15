@@ -69,7 +69,7 @@
   ↓
 [Step 3] Price Group ごとに最終価格を決定
   ├ Standard      → ベース価格そのまま
-  ├ Group A       → ベース価格 × 1.015（小数点以下2桁で丸め）
+  ├ Group A       → ベース価格 × 1.020（小数点以下2桁で丸め）
   └ Individual    → Custom Prices を Customer ID + SKU で検索
                      ├ 見つかった → そのCustom Price
                      └ 見つからない → ベース価格にフォールバック
@@ -89,7 +89,7 @@
 |---|---|---|
 | 1 | **Custom Prices** | Individual顧客の個別単価（あれば最優先）|
 | 2 | **Item List J列 or K列** | スタンダード価格（量り売り/定量売りで分岐）|
-| 3 | **Group A の +1.5%** | ベース価格に乗算 |
+| 3 | **Group A の +2.00%** | ベース価格に乗算 |
 
 **注意：** QBOの商品マスター（UnitPrice）は **使用しない**。
 QBOとItem ListのM列は手動同期で、ズレが発生することがあるため、Item Listを正本とする。
