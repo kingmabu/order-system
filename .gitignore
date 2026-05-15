@@ -6,3 +6,4 @@ node_modules/
 credentials.json
 tokens.json
 .claude/
+scripts/output/
