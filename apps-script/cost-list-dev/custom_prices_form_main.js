@@ -20,11 +20,12 @@ const CLIENT_LIST_SHEET = 'Client list';
 const ITEM_LIST_ID = '1dIiwCvK8DRXiRX9jGcaKmlc_x6QxsVmS_0dGpukjXAY'; // ← 変更（開発用ID）
 const ITEM_LIST_SHEET = '商品一覧';
 
-// Client list の列番号（X列 = Price Group, Y列 = Markup %）
+// Client list の列番号（W列 = Price Group, X列 = Markup %） // ← 変更
+// Phase 2でX/Y列→W/X列に変更（仕様書 02-data-structures.md 5-2参照）
 const CL_COL_CUSTOMER_ID = 1;  // A
 const CL_COL_CUSTOMER_NAME = 2; // B（必要に応じて調整）
-const CL_COL_PRICE_GROUP = 24; // X
-const CL_COL_MARKUP = 25;      // Y
+const CL_COL_PRICE_GROUP = 23; // W // ← 変更
+const CL_COL_MARKUP = 24;      // X // ← 変更
 
 // Item List の列番号
 const IL_COL_SKU = 1;          // A
