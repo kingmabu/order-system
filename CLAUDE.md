@@ -10,9 +10,12 @@
 - **指示書一式**: `docs/custom-prices-system/README.md` ほか8ファイル
 
 ### 残作業（Manabuさんの手作業＋テスト）
-1. 開発用 Client Information で `apps-script/client-info-dev/setup_price_group.js` を実行
-2. 開発用 Client list で全顧客を Standard / Group A / Individual に分類（Group A=12社、Individual=15社）
-3. Individual 15社の Custom Price を開発用 Custom Prices シートに**手動入力**（移行方針(C)）
+
+**📘 手作業手順書：[docs/custom-prices-system/手順書/](docs/custom-prices-system/手順書/README.md)**
+
+1. 開発用 Client Information で `setup_price_group.js` を実行 → [手順書1](docs/custom-prices-system/手順書/01-setup-price-group.md)
+2. 開発用 Client list で全顧客を Standard / Group A(12) / Individual(15) に分類 → [手順書2](docs/custom-prices-system/手順書/02-classify-clients.md)
+3. Individual 15社の Custom Price を Custom Prices シートに手動入力（≈75件） → [手順書3](docs/custom-prices-system/手順書/03-input-custom-prices.md)
 4. dry-run でローカル動作確認（`QBO_MODE=dry-run`）
 5. フェーズ5：本番移植 + 段階的展開
 
