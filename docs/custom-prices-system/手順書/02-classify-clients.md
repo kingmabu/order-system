@@ -1,10 +1,12 @@
-# 手順書2：Client list に Price Group を入力する
+# 手順書2：Client list に Price Group を入力する（5分類版）
 
 このドキュメントは、開発用 `Client list` シートの **W列（Price Group）** と **X列（Markup %）** に、全顧客の分類を入力するための作業手順書です。
 
 - **想定所要時間**：**30〜60分**（顧客リストの突き合わせに時間がかかる）
-- **前提**：手順書1（setup_price_group.js 実行）が完了していること
+- **前提**：手順書1（setup_price_group.js 実行・**5分類版**）が完了していること
 - **対象スプレッドシート**：開発用 Client Information（ID: `1Jqmqs-FVmhXrG7GqPbh6bkvaRWHZXtAEHUsWkZV4f8o`）
+
+> ⚠ **重要**：この手順書は**5分類版**です。`setup_price_group.js` が5択（Standard / Group A / Group B / Group C / Individual）の最新版になっている必要があります。古い版（3択）でセットアップ済みの場合は、まず Apps Script の最新版に置き換えて `setupPriceGroupColumns` を**再実行**してください（W列のプルダウン選択肢が拡張されます）。
 
 ---
 
@@ -12,94 +14,115 @@
 
 最終的にW列が以下のように埋まればOKです。
 
-| 分類 | 該当社数 | W列の値 | X列の値 | 例 |
+| 分類 | 該当社数 | W列の値 | X列の値 | 例 / 内訳 |
 |---|---|---|---|---|
-| **Group A** | **12社** | `Group A` | `2.00` | Jinya Group の各店舗 |
-| **Individual** | **15社** | `Individual` | （空欄） | QBO で Per Item 価格設定されている顧客 |
-| **Standard** | 残り（**約35社**） | `Standard` | （空欄） | 上記以外すべて |
+| **Group A** | **12社** | `Group A` | **`2.00`** | Jinya Group の各店舗（一律 +2.00%） |
+| **Group B** | **6社** | `Group B` | （空欄） | Daikoku Group の各店舗（共通カスタム価格） |
+| **Group C** | **4社** | `Group C` | （空欄） | Manpuku の各店舗（共通カスタム価格） |
+| **Individual** | **9社** | `Individual` | （空欄） | 各社個別カスタム価格 |
+| **Standard** | 残り（**約30社**） | `Standard` | （空欄） | 上記以外すべて |
 
-**合計：12 + 15 + Standard = 全顧客数**
+**合計：12 + 6 + 4 + 9 + Standard = 全顧客数**
 
 ---
 
-## ステップ1：QBO で Group A / Individual の顧客リストを作る（15〜30分）
+## ステップ1：QBO で 4分類の顧客リストを作る（15〜30分）
 
 W列を埋める前に、**「どの顧客がどの分類か」を紙またはメモで確定**させます。
 
-### 1-1. Group A（Jinya Group 12社）の特定
+### 1-1. Group A（Jinya Group **12社**）の特定
 
-Jinya Group の店舗は Manabu さんの記憶 / 既存資料から特定できる想定です。
+Jinya Group の店舗は、QBO で **Fixed +2% の Pricing Rule** が設定されている顧客です。
 
 **やること：**
 1. メモ帳（または別のスプレッドシート）に「Group A」と書く
 2. Jinya Group の店舗名を **12社**書き出す
-3. それぞれの **Customer ID**（3桁ゼロ埋め、Client list のA列）を併記する
+3. それぞれの **Customer ID**（3桁ゼロ埋め、Client list の A列）を併記
 
 **例：**
 ```
-Group A (12社)
+Group A (12社, Markup +2.00%)
   011 BENI HOLLYWOOD
   023 JINYA SANTA MONICA
   ...
   （計12社）
 ```
 
-> 💡 もし社数が**12社にならない**場合は、QBO の Pricing Rules 一覧で「+2%」と設定されている顧客と突き合わせてください。
+### 1-2. Group B（Daikoku Group **6社**）の特定
 
-### 1-2. Individual（15社）の特定
+Daikoku Group の店舗を**6社**書き出します。
 
-QBO で **Per Item 価格（商品ごとの個別単価）** が設定されている顧客が対象です。
-
-**やること：**
-1. QBO にログイン → **Sales → Price Rules**（または該当メニュー）を開く
-2. **Per Item 形式**の Price Rule を持つ顧客を**15社**特定する
-3. メモに「Individual」と書き、顧客名と Customer ID を併記する
-
-**例：**
 ```
-Individual (15社)
+Group B (6社, 共通カスタム価格)
+  ??? Daikoku XXX
+  ???
+  ...
+  （計6社）
+```
+
+> 💡 Group B は、6社すべてに**同じカスタム価格**が適用されます。Custom Prices シートには「GROUP_B」という疑似Customer IDで**1セットだけ**価格を入れます（手順書3で実施）。
+
+### 1-3. Group C（Manpuku **4社**）の特定
+
+Manpuku の店舗を**4社**書き出します。
+
+```
+Group C (4社, 共通カスタム価格)
+  ??? Manpuku XXX
+  ???
+  ...
+  （計4社）
+```
+
+### 1-4. Individual（**9社**）の特定
+
+QBO で **Per Item 価格（商品ごとの個別単価）** が設定されている顧客のうち、**Group B / Group C に属さない**ものが対象です。
+
+```
+Individual (9社, 各社個別カスタム価格)
   035 KUSHIYAKI BAR
   088 SUSHI X
   ...
-  （計15社）
+  （計9社）
 ```
 
-> ⚠ **Fixed % 形式（+2%など）は Group A 側**です。**Per Item 形式のみ Individual** に分類してください。
+> ⚠ **Group B / Group C の店舗は Individual に入れない**でください。共通価格を持つグループはそれぞれの分類に入れます。
 
 ### チェックポイント
 
 - [ ] Group A リスト：ちょうど **12社**
-- [ ] Individual リスト：ちょうど **15社**
-- [ ] 両方のリストに、各顧客の **Customer ID（3桁ゼロ埋め）** が書かれている
-- [ ] **重複なし**（Group A と Individual に同じ顧客が入っていない）
+- [ ] Group B リスト：ちょうど **6社**
+- [ ] Group C リスト：ちょうど **4社**
+- [ ] Individual リスト：ちょうど **9社**
+- [ ] 全リストに、各顧客の **Customer ID（3桁ゼロ埋め）** が書かれている
+- [ ] **重複なし**（同じ顧客が複数の分類に入っていない）
+- [ ] 合計 = **31社**（12 + 6 + 4 + 9）
 
 ---
 
 ## ステップ2：W列に Individual を入力（5分）
 
-リストが固まったら、まず**Individualを先に入力**します（社数が中程度で、手動で見つけやすいため）。
+リストが固まったら、**Individual 9社を先に入力**します（社数が少なく、誤入力リスクが低いため）。
 
 1. 開発用 Client list を開く
-2. **A列（Customer ID）** で、リストの 15社のCustomer IDを順番に検索：
+2. **A列（Customer ID）** で、リストの 9社のCustomer IDを順番に検索：
    - `Ctrl + F` で検索ダイアログを開く
    - Customer ID を入力（例：`035`）
    - **完全一致** にチェックを入れる（誤マッチ防止）
 3. 該当行の **W列セル** をクリック → プルダウンから **`Individual`** を選択
-4. 15社すべて完了するまで繰り返す
+4. 9社すべて完了するまで繰り返す
 
 **チェックポイント：**
-- [ ] W列に `Individual` が **ちょうど15個**ある
+- [ ] W列に `Individual` が **ちょうど9個**ある
   - 確認方法：列のフィルター機能で `Individual` だけ絞り込み → 行数を数える
 
 ---
 
 ## ステップ3：W列に Group A を入力（5分）
 
-同じ要領で Group A の12社を入力します。
-
 1. Group A リストの Customer ID を1つずつ検索
 2. 該当行の W列で **`Group A`** を選択
-3. **同時に X列に `2.00` を入力**（Group A 専用のMarkup値）
+3. **同時に X列に `2.00` を入力**（Group A 専用の Markup 値）
 4. 12社すべて完了するまで繰り返す
 
 **チェックポイント：**
@@ -108,7 +131,33 @@ Individual (15社)
 
 ---
 
-## ステップ4：残りの行に Standard を一括入力（2分）
+## ステップ4：W列に Group B を入力（3分）
+
+1. Group B リストの Customer ID を1つずつ検索
+2. 該当行の W列で **`Group B`** を選択
+3. **X列は空欄のまま**（Group B は一律％なし）
+4. 6社すべて完了するまで繰り返す
+
+**チェックポイント：**
+- [ ] W列に `Group B` が **ちょうど6個**ある
+- [ ] その6行のX列はすべて**空欄**
+
+---
+
+## ステップ5：W列に Group C を入力（3分）
+
+1. Group C リストの Customer ID を1つずつ検索
+2. 該当行の W列で **`Group C`** を選択
+3. **X列は空欄のまま**（Group C は一律％なし）
+4. 4社すべて完了するまで繰り返す
+
+**チェックポイント：**
+- [ ] W列に `Group C` が **ちょうど4個**ある
+- [ ] その4行のX列はすべて**空欄**
+
+---
+
+## ステップ6：残りの行に Standard を一括入力（2分）
 
 ここまでで、**W列が空欄のままの行 = Standard 顧客**です。
 
@@ -119,7 +168,7 @@ Individual (15社)
 3. 表示された全行のW列を範囲選択：
    - 一番上の空欄W列セルをクリック
    - `Ctrl + Shift + ↓` で末尾まで選択
-4. `Standard` と入力 → `Ctrl + Enter`（**Enterではなく Ctrl+Enter**）で**選択範囲一括入力**
+4. `Standard` と入力 → `Ctrl + Enter`（**Enter ではなく Ctrl+Enter**）で**選択範囲一括入力**
 5. フィルターを解除：**データ → フィルターを削除**
 
 ### 方法B：1セルずつ手動
@@ -130,87 +179,79 @@ Individual (15社)
 
 **チェックポイント：**
 - [ ] W列に空欄が**ひとつもない**
-- [ ] W列の値は `Standard` / `Group A` / `Individual` の **3種類のみ**
+- [ ] W列の値は `Standard` / `Group A` / `Group B` / `Group C` / `Individual` の **5種類のみ**
 
 ---
 
-## ステップ5：最終確認（5分）
+## ステップ7：最終確認（5分）
 
-### 5-1. 件数チェック
+### 7-1. 件数チェック
 
 W列の各値の件数を確認します。
 
-1. シート末尾の使っていないセル（例：Z1）に以下の式を貼り付け：
-   ```
-   =COUNTIF(W:W,"Standard")
-   ```
-2. Z2 に：
-   ```
-   =COUNTIF(W:W,"Group A")
-   ```
-3. Z3 に：
-   ```
-   =COUNTIF(W:W,"Individual")
-   ```
-4. Z4 に：
-   ```
-   =COUNTA(W2:W1000)
-   ```
+シート末尾の使っていないセル（例：Z1〜Z6）に以下の式を貼り付け：
 
-**期待値：**
-- Z1（Standard）：約35（顧客数 - 27）
-- Z2（Group A）：**12**
-- Z3（Individual）：**15**
-- Z4（全W列）：Z1 + Z2 + Z3 と等しい（= 全顧客数）
+| セル | 式 | 期待値 |
+|---|---|---|
+| Z1 | `=COUNTIF(W:W,"Standard")` | 約30（顧客数 - 31） |
+| Z2 | `=COUNTIF(W:W,"Group A")` | **12** |
+| Z3 | `=COUNTIF(W:W,"Group B")` | **6** |
+| Z4 | `=COUNTIF(W:W,"Group C")` | **4** |
+| Z5 | `=COUNTIF(W:W,"Individual")` | **9** |
+| Z6 | `=COUNTA(W2:W1000)` | Z1+Z2+Z3+Z4+Z5（= 全顧客数） |
 
-### 5-2. データ検証チェック
+### 7-2. データ検証チェック
 
 W列をクリックして、以下を確認：
 
 - [ ] プルダウン▼が出る
-- [ ] プルダウンの選択肢は `Standard` / `Group A` / `Individual` の3つだけ
+- [ ] プルダウンの選択肢は `Standard` / `Group A` / `Group B` / `Group C` / `Individual` の**5つ**だけ
 - [ ] 範囲外の値を入力するとエラーで弾かれる
 
-### 5-3. X列チェック
+### 7-3. X列チェック
 
 - [ ] Group A の12行に `2.00` が入っている
-- [ ] それ以外の行は X列が空欄
+- [ ] それ以外の行（Group B / Group C / Individual / Standard）は X列が**空欄**
 
-### 5-4. 確認式を削除
+### 7-4. 確認式を削除
 
-Z1〜Z4 のチェック用式を削除します（残しても害はないが、見た目をきれいに）。
+Z1〜Z6 のチェック用式を削除します。
 
 ---
 
-## ステップ6：完了報告（30秒）
+## ステップ8：完了報告（30秒）
 
 すべてOKなら、Claude に以下を伝えてください：
 
-> 「手順書2の顧客分類入力、完了しました。Individual 15社 / Group A 12社 / Standard 〇社 です」
+> 「手順書2の顧客分類入力、完了しました。
+>   Group A 12社 / Group B 6社 / Group C 4社 / Individual 9社 / Standard 〇社 です」
 
-次は **手順書3（Custom Prices 75レコード入力）** に進みます。
+次は **手順書3（Custom Prices 入力）** に進みます。
 
-> 💡 このとき**Individual 15社のリスト**を Claude に共有してもらえると、手順書3で参照しやすくなります。
+> 💡 このとき以下を共有してもらえると、手順書3で参照しやすくなります：
+> - **Individual 9社のリスト**（Customer ID + 顧客名）
+> - **Group B 6社のリスト**（参考用 / Custom Prices シートには「GROUP_B」を使用）
+> - **Group C 4社のリスト**（参考用 / Custom Prices シートには「GROUP_C」を使用）
 
 ---
 
 ## 困ったときは
 
-### Individualが15社にならない（多い・少ない）
-- QBO で Per Item 形式の Price Rule の数を再確認してください。
-- 「廃業した店舗」「QBO上は残っているが運用していない顧客」が含まれている可能性。
-- **15社から外れた場合は Claude に報告**して進めてください。
+### 各分類の社数が想定と異なる
+- **Group A が12社にならない** → Jinya Group の店舗リスト再確認、QBO Fixed +2% 設定数と突合
+- **Group B が6社にならない** → Daikoku Group 店舗リスト再確認
+- **Group C が4社にならない** → Manpuku 店舗リスト再確認
+- **Individual が9社にならない** → QBO Per Item Price Rule 数を再確認、Group B/C と重複していないか確認
+- ズレた場合は Claude に報告して進めてください
 
-### Group Aが12社にならない
-- Jinya Group の店舗リストを再確認。
-- 「Jinya Sushi」など本部・関連法人と店舗を混同していないか確認。
+### 同じ顧客が複数の分類に該当しそう
+- **優先順位**：Individual > Group C > Group B > Group A > Standard（特殊なほど優先）
+- ただしルールが曖昧な場合は Claude に確認してください
 
-### 同じ顧客が Group A と Individual の両方に該当しそう
-- **Individual が優先**です（QBO で Per Item 設定があるなら、+2% より優先される実態）。
-- ただしルールが曖昧な場合は Claude に確認してください。
-
-### W列のプルダウンが消えてしまった
-- 手順書1の `setupPriceGroupColumns` を再実行すれば復旧します（冪等設計）。
+### W列のプルダウンが3択しか表示されない
+- `setup_price_group.js` が**古い版（3択）**でセットアップ済みです。
+- 最新版（5択：`PG_VALID_GROUPS = ['Standard', 'Group A', 'Group B', 'Group C', 'Individual']`）に置き換えて `setupPriceGroupColumns` を再実行してください。
+- 既存のW列の値（Standard / Group A / Individual）はそのまま残ります。
 
 ### Customer ID を間違えて違う行に入れてしまった
 - そのセルだけ Delete キーで空欄に戻して、正しい行に入れ直してください。

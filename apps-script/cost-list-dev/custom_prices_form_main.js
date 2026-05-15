@@ -12,6 +12,12 @@
 const CP_SHEET = 'Custom Prices';
 const CP_LOG_SHEET = 'Custom Price Log';
 
+// Group B / Group C は Custom Prices シートに「疑似Customer ID」で共有価格を持つ // ← 変更（5分類対応）
+const GROUP_B_LOOKUP_KEY = 'GROUP_B'; // ← 変更
+const GROUP_C_LOOKUP_KEY = 'GROUP_C'; // ← 変更
+const GROUP_B_DISPLAY_NAME = 'Group B (Daikoku - 6社共通)'; // ← 変更
+const GROUP_C_DISPLAY_NAME = 'Group C (Manpuku - 4社共通)'; // ← 変更
+
 // Client Information のスプレッドシートID（開発用） // ← 変更
 const CLIENT_INFO_ID = '1Jqmqs-FVmhXrG7GqPbh6bkvaRWHZXtAEHUsWkZV4f8o'; // ← 変更（開発用ID）
 const CLIENT_LIST_SHEET = 'Client list';
@@ -185,6 +191,57 @@ function getIndividualCustomers() {
 }
 
 /**
+ * Custom Price 入力対象の一覧を取得（Add モードで使用） // ← 変更（新規追加）
+ * Group B / Group C の仮想エントリ（共有価格用）＋ Individual 顧客 を返す。
+ * - Group B/C は Client list に該当顧客がいる場合のみ追加（社数表示は実件数）。
+ * - 仮想エントリは id='GROUP_B' / 'GROUP_C'、isGroup=true で識別。
+ * @return {Array} [{ id, name, isGroup }, ...]
+ */
+function getCustomPriceTargets() {
+  const ss = SpreadsheetApp.openById(CLIENT_INFO_ID);
+  const sh = ss.getSheetByName(CLIENT_LIST_SHEET);
+  if (!sh) throw new Error('Client list が見つかりません');
+
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+
+  const data = sh.getRange(2, 1, lastRow - 1, CL_COL_PRICE_GROUP).getValues();
+  let countGroupB = 0;
+  let countGroupC = 0;
+  const individuals = [];
+
+  data.forEach(row => {
+    const id = String(row[CL_COL_CUSTOMER_ID - 1] || '').trim();
+    const name = String(row[CL_COL_CUSTOMER_NAME - 1] || '').trim();
+    const group = String(row[CL_COL_PRICE_GROUP - 1] || '').trim();
+    if (!id || !name) return;
+    if (group === 'Group B') countGroupB++;
+    else if (group === 'Group C') countGroupC++;
+    else if (group === 'Individual') {
+      individuals.push({ id: _normalizeId_(id), name: name, isGroup: false });
+    }
+  });
+
+  const result = [];
+  if (countGroupB > 0) {
+    result.push({
+      id: GROUP_B_LOOKUP_KEY,
+      name: `🔷 Group B (Daikoku - ${countGroupB}社共通)`,
+      isGroup: true,
+    });
+  }
+  if (countGroupC > 0) {
+    result.push({
+      id: GROUP_C_LOOKUP_KEY,
+      name: `🔶 Group C (Manpuku - ${countGroupC}社共通)`,
+      isGroup: true,
+    });
+  }
+  individuals.sort((a, b) => a.name.localeCompare(b.name));
+  return result.concat(individuals);
+}
+
+/**
  * 全顧客一覧を取得（Individual変更ボタン用）
  * @return {Array} [{ id, name, group }, ...]
  */
@@ -316,9 +373,19 @@ function addCustomPrice(data) {
       };
     }
 
-    // Customer Name と Item Name を取得
-    const customer = getAllCustomers().find(c => c.id === normId);
-    if (!customer) return { success: false, message: '顧客が見つかりません' };
+    // Customer Name を解決 // ← 変更（Group B/C 疑似ID対応）
+    // - GROUP_B / GROUP_C は Client list に存在しないので仮想表示名を使う
+    // - それ以外は従来通り Client list から取得
+    let customerName;
+    if (normId === GROUP_B_LOOKUP_KEY) {
+      customerName = GROUP_B_DISPLAY_NAME;
+    } else if (normId === GROUP_C_LOOKUP_KEY) {
+      customerName = GROUP_C_DISPLAY_NAME;
+    } else {
+      const customer = getAllCustomers().find(c => c.id === normId);
+      if (!customer) return { success: false, message: '顧客が見つかりません' };
+      customerName = customer.name;
+    }
 
     const items = getAllItems();
     const item = items.find(i => i.sku === data.sku);
@@ -335,7 +402,7 @@ function addCustomPrice(data) {
     const today = new Date();
     sh.appendRow([
       normId,
-      customer.name,
+      customerName, // ← 変更
       data.sku,
       item.name,
       priceNum,
@@ -348,11 +415,11 @@ function addCustomPrice(data) {
     sh.getRange(lastRow, 6).setNumberFormat('M/d/yyyy');
 
     // ログ記録
-    _appendLog_('Add', normId, customer.name, data.sku, item.name, null, priceNum, data.note);
+    _appendLog_('Add', normId, customerName, data.sku, item.name, null, priceNum, data.note); // ← 変更
 
     return {
       success: true,
-      message: `追加しました: ${customer.name} × ${data.sku} → $${priceNum}`
+      message: `追加しました: ${customerName} × ${data.sku} → $${priceNum}` // ← 変更
     };
   } catch (err) {
     return { success: false, message: 'エラー: ' + err.message };

@@ -11,8 +11,8 @@
  * 冪等性: 何度実行してもOK（ヘッダーは上書き、プルダウンは再設定）
  *
  * 仕様:
- *   - W列: Price Group（プルダウン: Standard / Group A / Individual）
- *   - X列: Markup %（Group Aのみ 2.00、それ以外は空欄。将来拡張用） // ← 変更
+ *   - W列: Price Group（プルダウン: Standard / Group A / Group B / Group C / Individual） // ← 変更（5分類対応）
+ *   - X列: Markup %（Group Aのみ 2.00、それ以外は空欄）
  */
 
 // ============================================================
@@ -22,7 +22,7 @@ const PG_SHEET_NAME = 'Client list';
 const PG_HEADER_ROW = 1;              // ヘッダー行の位置
 const PG_COL_PRICE_GROUP = 23;        // W列
 const PG_COL_MARKUP = 24;             // X列
-const PG_VALID_GROUPS = ['Standard', 'Group A', 'Individual'];
+const PG_VALID_GROUPS = ['Standard', 'Group A', 'Group B', 'Group C', 'Individual']; // ← 変更（Group B/C 追加）
 
 // ============================================================
 // メイン関数: 実行するのはこの関数
@@ -58,7 +58,7 @@ function setupPriceGroupColumns() {
     const rule = SpreadsheetApp.newDataValidation()
       .requireValueInList(PG_VALID_GROUPS, true)   // 第2引数=true → プルダウン表示
       .setAllowInvalid(false)                       // 範囲外の値を拒否
-      .setHelpText('Standard / Group A / Individual のいずれかを選択してください')
+      .setHelpText('Standard / Group A / Group B / Group C / Individual のいずれかを選択してください') // ← 変更
       .build();
     validationRange.setDataValidation(rule);
     Logger.log(`プルダウン設定: W${PG_HEADER_ROW + 1}:W${lastRow} (${numDataRows}行)`);
@@ -77,16 +77,18 @@ function setupPriceGroupColumns() {
   sheet.setColumnWidth(PG_COL_MARKUP, 100);
 
   Logger.log('✅ セットアップ完了');
-  Logger.log('次のステップ: Group A 12社 / Individual 15社 の行のW列に値を入力してください。残りは "Standard" で一括埋めできます。'); // ← 変更
+  Logger.log('次のステップ: Group A 12社 / Group B 6社 / Group C 4社 / Individual 9社 のW列を入力。残りは "Standard" で一括埋め。'); // ← 変更（5分類対応）
 
   SpreadsheetApp.getUi().alert(
     'セットアップ完了',
     `W列 (Price Group) と X列 (Markup %) を追加しました。\n\n` +
     `次のステップ:\n` +
-    `1. Group A の12社の行のW列に "Group A" を選択\n` + // ← 変更
-    `2. Individual の15社の行のW列に "Individual" を選択\n` +
-    `3. 残りの行に "Standard" を一括入力\n` +
-    `4. Group A の行は X列に 2.00 を入力`, // ← 変更
+    `1. Group A 12社（Jinya Group）の行のW列に "Group A" を選択\n` +     // ← 変更
+    `2. Group B 6社（Daikoku Group）の行のW列に "Group B" を選択\n` +   // ← 変更
+    `3. Group C 4社（Manpuku）の行のW列に "Group C" を選択\n` +         // ← 変更
+    `4. Individual 9社 の行のW列に "Individual" を選択\n` +              // ← 変更
+    `5. 残りの行に "Standard" を一括入力\n` +
+    `6. Group A の行は X列に 2.00 を入力（Group B/C/Individual は X列空欄）`, // ← 変更
     SpreadsheetApp.getUi().ButtonSet.OK
   );
 }

@@ -186,16 +186,27 @@
           customPrices = allCps;
           // CustomPrices にある顧客のみを抽出
           const idSet = new Set(allCps.map(c => c.customerId));
+          // Edit/Delete モードでは Group B/C 疑似IDも対象にするため // ← 変更
+          // getAllCustomers() に仮想エントリを補完する
           google.script.run.withSuccessHandler(all => {
-            customers = all.filter(c => idSet.has(c.id));
+            // 仮想エントリ（GROUP_B / GROUP_C）を all に補完 // ← 変更
+            const augmented = all.slice();
+            if (idSet.has('GROUP_B') && !augmented.find(c => c.id === 'GROUP_B')) {
+              augmented.push({ id: 'GROUP_B', name: '🔷 Group B (Daikoku 共通)', group: 'Group B', isGroup: true });
+            }
+            if (idSet.has('GROUP_C') && !augmented.find(c => c.id === 'GROUP_C')) {
+              augmented.push({ id: 'GROUP_C', name: '🔶 Group C (Manpuku 共通)', group: 'Group C', isGroup: true });
+            }
+            customers = augmented.filter(c => idSet.has(c.id));
             renderCustomers();
           }).getAllCustomers();
         }).getAllCustomPrices();
       } else {
+        // Add モード：Group B/C 仮想エントリ + Individual 顧客 // ← 変更
         google.script.run.withSuccessHandler(list => {
           customers = list;
           renderCustomers();
-        }).getIndividualCustomers();
+        }).getCustomPriceTargets();
       }
 
       google.script.run.withSuccessHandler(list => { items = list; }).getAllItems();
@@ -207,7 +218,8 @@
       customers.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.id;
-        opt.textContent = `${c.name} (${c.id})`;
+        // Group B/C 仮想エントリは name に既に説明が入っているので ID 表記を省略 // ← 変更
+        opt.textContent = c.isGroup ? c.name : `${c.name} (${c.id})`;
         sel.appendChild(opt);
       });
       sel.onchange = onCustomerChange;

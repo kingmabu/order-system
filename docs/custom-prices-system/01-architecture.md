@@ -4,6 +4,11 @@
 
 **実装に着手する前に、必ずこのファイル全体を読んでください。**
 
+> ⚠ **2026-05-15 設計変更**：顧客分類を **5分類**（Standard / Group A / Group B / Group C / Individual）に拡張しました。 // ← 変更
+> - Group B（Daikoku 6社）：6社で共通カスタム価格（疑似ID `GROUP_B`）
+> - Group C（Manpuku 4社）：4社で共通カスタム価格（疑似ID `GROUP_C`）
+> - 本ファイル内の「Group A / Individual のいずれか」「Individualのみ」等の旧記述は、すべて **Group A / Group B / Group C / Individual** に読み替えてください。
+
 ---
 
 ## 1. システム全体図
@@ -17,7 +22,7 @@
 │  [order-system / server.js] - Node.js / Express             │
 │   ├ Item List から商品マスター・価格を取得                  │
 │   ├ Client list から顧客情報・Price Group を取得            │
-│   ├ Custom Prices から個別価格を取得（Individual のみ）    │
+│   ├ Custom Prices から個別価格を取得（Group B/C/Individual）│ // ← 変更
 │   ├ 価格決定ロジックを実行                                  │
 │   └ QBO にインボイス送信                                   │
 │         ↓                                                   │
@@ -44,8 +49,9 @@
 │   - W列：Price Group（追加）                               │
 │   - X列：Markup %（追加）                                  │
 │                                                             │
-│  [Custom Prices] ← 新規（Cost list 内に作成）              │
-│   - Individual顧客×SKUの個別単価                            │
+│  [Custom Prices] ← 新規（Cost list 内に作成）              │ // ← 変更
+│   - Individual顧客×SKU の個別単価（Customer ID で識別）      │
+│   - Group B/C 共通単価（疑似ID GROUP_B / GROUP_C で識別）    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -60,16 +66,22 @@
   ↓
 [Step 1] Customer ID から Price Group を取得
   → Client list の W列を参照
-  → Standard / Group A / Individual のいずれか
+  → Standard / Group A / Group B / Group C / Individual のいずれか // ← 変更（5分類）
   ↓
 [Step 2] 商品ごとに、その商品の販売単位を判定
   → Item List の I列（✅ Unit?）を確認
   → チェックあり → 定量売り → ベース価格 = K列（Unit Price）
   → チェックなし → 量り売り → ベース価格 = J列（Price $/lb）
   ↓
-[Step 3] Price Group ごとに最終価格を決定
+[Step 3] Price Group ごとに最終価格を決定 // ← 変更（5分岐）
   ├ Standard      → ベース価格そのまま
   ├ Group A       → ベース価格 × 1.020（小数点以下2桁で丸め）
+  ├ Group B       → Custom Prices を "GROUP_B" + SKU で検索
+  │                  ├ 見つかった → そのCustom Price
+  │                  └ 見つからない → ベース価格にフォールバック
+  ├ Group C       → Custom Prices を "GROUP_C" + SKU で検索
+  │                  ├ 見つかった → そのCustom Price
+  │                  └ 見つからない → ベース価格にフォールバック
   └ Individual    → Custom Prices を Customer ID + SKU で検索
                      ├ 見つかった → そのCustom Price
                      └ 見つからない → ベース価格にフォールバック
@@ -87,7 +99,7 @@
 
 | 優先度 | データソース | 内容 |
 |---|---|---|
-| 1 | **Custom Prices** | Individual顧客の個別単価（あれば最優先）|
+| 1 | **Custom Prices** | Group B/C の共通単価 + Individual顧客の個別単価（あれば最優先）| // ← 変更
 | 2 | **Item List J列 or K列** | スタンダード価格（量り売り/定量売りで分岐）|
 | 3 | **Group A の +2.00%** | ベース価格に乗算 |
 
