@@ -71,6 +71,8 @@ function _ensureCustomPricesSheet_() {
   sh.setColumnWidth(5, 110);
   sh.setColumnWidth(6, 110);
   sh.setColumnWidth(7, 250);
+  // A列（Customer ID）をテキスト形式に（"011" の先頭ゼロ保持） // ← 変更
+  sh.getRange('A2:A').setNumberFormat('@');
   return sh;
 }
 
@@ -415,6 +417,9 @@ function addCustomPrice(data) {
     // 日付フォーマット
     const lastRow = sh.getLastRow();
     sh.getRange(lastRow, 6).setNumberFormat('M/d/yyyy');
+    // Customer ID を確実にテキストで保存（"011" の先頭ゼロを保持） // ← 変更
+    // appendRow は列のPlain text書式が効かず数値化されることがあるため、書式設定後に再代入する
+    sh.getRange(lastRow, 1).setNumberFormat('@').setValue(normId);
 
     // ログ記録
     _appendLog_('Add', normId, customerName, data.sku, item.name, null, priceNum, data.note); // ← 変更
@@ -562,4 +567,6 @@ function _appendLog_(action, customerId, customerName, sku, itemName, priceBefor
   // タイムスタンプの書式設定
   const lastRow = sh.getLastRow();
   sh.getRange(lastRow, 1).setNumberFormat('yyyy/MM/dd HH:mm:ss');
+  // Customer ID（C列）をテキストで保存（"011" の先頭ゼロを保持） // ← 変更
+  sh.getRange(lastRow, 3).setNumberFormat('@').setValue(customerId);
 }
