@@ -69,6 +69,21 @@ function normalizeId(id) {
 }
 
 /**
+ * 価格セルの値を数値化する。 // ← 変更（箱単価バグ修正）
+ * 数値ならそのまま、文字列なら数字部分だけを抽出する。
+ *  Item List K列は表示用数式 =IF(I,"$"&TEXT(J*N,"0.00")&"/"&M,"") のため
+ *  "$105.75/Box" のような文字列で返る。Number() では NaN になり 0 に落ちてしまう問題に対応。
+ *  例: 105.75 → 105.75 / "$105.75/Box" → 105.75 / "$1,105.75/Box" → 1105.75 / "" → 0
+ */
+function parsePrice(val) {
+  if (typeof val === 'number') return isFinite(val) ? val : 0;
+  if (val === null || val === undefined) return 0;
+  const s = String(val).replace(/,/g, '');
+  const m = s.match(/-?\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : 0;
+}
+
+/**
  * Custom Prices 全件読み取り
  * シート列: A=Customer ID, B=Customer Name, C=SKU, D=Item Name, E=Custom Price, F=Update Date, G=Note
  * @return {Array} [{ customerId, customerName, sku, itemName, price, updateDate, note }, ...]
@@ -137,8 +152,8 @@ async function loadAllItems() {
       const itemName = String(r[3] || '').trim(); // D列
       // I列のチェックボックスは true/false で返るが、文字列 'TRUE' のケースにも備える
       const isUnit = r[8] === true || r[8] === 'TRUE' || r[8] === 'true';
-      const priceLb = Number(r[9]) || 0;    // J列
-      const priceUnit = Number(r[10]) || 0; // K列
+      const priceLb = parsePrice(r[9]);    // J列（$/lb）         // ← 変更
+      const priceUnit = parsePrice(r[10]); // K列（"$105.75/Box" のような文字列も数値化） // ← 変更
       return {
         sku,
         itemName,
@@ -169,5 +184,6 @@ module.exports = {
   loadAllItems,
   loadAllDataSources,
   normalizeId,
+  parsePrice, // ← 変更（箱単価パース。テスト・他モジュールから参照可能に）
   readRangeWithRetry,
 };

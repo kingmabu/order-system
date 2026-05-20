@@ -288,9 +288,11 @@ function getAllItems() {
   data.forEach(row => {
     const sku = String(row[IL_COL_SKU - 1] || '').trim();
     const name = String(row[IL_COL_ITEM_NAME - 1] || '').trim();
-    const isUnit = row[IL_COL_UNIT_CHECK - 1] === true;
-    const priceLb = Number(row[IL_COL_PRICE_LB - 1]) || 0;
-    const priceUnit = Number(row[IL_COL_PRICE_UNIT - 1]) || 0;
+    // I列チェックボックスは true/false 真偽値だが、文字列 'TRUE' のケースにも備える // ← 変更
+    const unitRaw = row[IL_COL_UNIT_CHECK - 1];
+    const isUnit = unitRaw === true || unitRaw === 'TRUE' || unitRaw === 'true';
+    const priceLb = _parsePrice_(row[IL_COL_PRICE_LB - 1]);     // J列（$/lb） // ← 変更
+    const priceUnit = _parsePrice_(row[IL_COL_PRICE_UNIT - 1]); // K列（"$105.75/Box" 文字列も数値化） // ← 変更
     const basePrice = isUnit ? priceUnit : priceLb;
 
     if (sku && name) {
@@ -523,6 +525,21 @@ function _normalizeId_(id) {
   const num = parseInt(String(id).replace(/\D/g, ''), 10);
   if (isNaN(num)) return String(id);
   return ('000' + num).slice(-3);
+}
+
+/**
+ * 価格セルの値を数値化する。 // ← 変更（箱単価バグ修正）
+ * 数値ならそのまま、文字列なら数字部分だけを抽出する。
+ *  Item List K列は表示用数式 =IF(I,"$"&TEXT(J*N,"0.00")&"/"&M,"") のため
+ *  "$105.75/Box" のような文字列で返り、Number() では NaN→0 になる問題に対応。
+ *  例: 105.75 → 105.75 / "$105.75/Box" → 105.75 / "$1,105.75/Box" → 1105.75 / "" → 0
+ */
+function _parsePrice_(val) {
+  if (typeof val === 'number') return isFinite(val) ? val : 0;
+  if (val === null || val === undefined) return 0;
+  const s = String(val).replace(/,/g, '');
+  const m = s.match(/-?\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : 0;
 }
 
 /**
