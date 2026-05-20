@@ -102,7 +102,7 @@ async function loadAllCustomPrices() {
       customerName: String(r[1] || '').trim(),
       sku: String(r[2]).trim(),
       itemName: String(r[3] || '').trim(),
-      price: Number(r[4]) || 0,
+      price: parsePrice(r[4]), // E列。"$16.05" のような通貨表示でも数値化（FORMATTED_VALUE対策） // ← 変更
       updateDate: r[5] || null,
       note: String(r[6] || ''),
     }));
