@@ -320,12 +320,13 @@ app.post('/api/create-invoice', async (req, res) => {
     }
 
     // ===== ④ QBOアイテムIDを取得（SKUごとに照合） =====
-    // ← 変更: QBOクエリ言語は Sku に対する IN 句が効かず空で返るため、旧実装どおり = で1件ずつ引く
+    // ← 変更: 旧実装どおり SELECT * で1件ずつ引く。
+    //   QBOは (a) Sku への IN 句が効かず空で返る (b) Sku を SELECT 射影に含めると空で返る、ため。
     const skuList = pricedItems.filter(p => p.source !== 'error').map(p => p.sku);
     const qboItemsBySku = new Map();
     for (const sku of skuList) {
       const itemRes = await axios.get(
-        `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT Id, Sku, Description FROM Item WHERE Sku = '${String(sku).replace(/'/g, "\\'")}'`)}`,
+        `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Item WHERE Sku = '${String(sku).replace(/'/g, "\\'")}'`)}`,
         { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
       );
       const found = itemRes.data.QueryResponse?.Item?.[0];
