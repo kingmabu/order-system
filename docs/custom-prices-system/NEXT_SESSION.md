@@ -16,18 +16,15 @@
 - ✅ 手順書3（Custom Prices 32件登録）＋ dry-run検証完了
 - ✅ 箱単価/Custom Price/Customer IDパースの3バグ修正（commit 3f5f971/9936d6e/a0a2ee3）
 
-## 🆕 2026-05-22：Group D（Ramen Joint-Aikan 5社）追加 — 6分類化
-- コード変更済み（node検証OK・**未デプロイ/未分類**）：
-  - `routes/pricing.js`（GROUP_D_LOOKUP_KEY・分岐・export）
-  - `apps-script/cost-list-dev/custom_prices_form_main.js`（GROUP_D定数/表示名/getCustomPriceTargets/addCustomPrice）
-  - `apps-script/cost-list-dev/custom_prices_form.html`（Edit/Delete用GROUP_D仮想エントリ）
-  - `apps-script/client-info-dev/setup_price_group.js`（PG_VALID_GROUPS 6択化）
-- **残作業（Group D）**：
-  1. Client Info で `setupPriceGroupColumns` を6択版で再実行（W列プルダウンに Group D 追加）
-  2. Ramen Joint-Aikan 5社を W列で `Group D` に分類
-  3. Cost list へ `custom_prices_form_main.gs` / `custom_prices_form.html` を再デプロイ
-  4. フォームで `🟢 Group D` を選び、GROUP_D 共通価格を登録
-  5. dry-run 再実行（`node -r dotenv/config scripts/dry-run-pricing.js dotenv_config_path=.env.development`）で Group D 検証
+## 🆕 2026-05-22：Group D（Ramen Joint-Aikan 5社）追加 — 6分類化【開発環境で完了】
+- コード変更・有効化・dry-run検証すべて完了（commit bd28d84 / 9fd61f1）。
+- Group D 5社：035/045/070/088/033（088はIndividual→Group Dに移動。Individualは8社に）。
+- dry-run結果：GROUP_D→035 C011=$19.50 [custom] OK。全6分類正常。Custom Prices 33件。
+
+## 📦 2026-05-22：次はフェーズ5後半（本番移植）
+- 開発環境は全6分類 dry-run 完了。**次は本番移植**。
+- **本番移植計画書：`docs/custom-prices-system/08-production-migration.md`**（手順・本番ID・シートID差し替え・段階的展開・ロールバック・チェックリスト一式）。
+- 着手前に本番3シートのバックアップとサービスアカウント共有確認。`QBO_MODE` は必ず dry-run で開始し、段階的に展開。
 
 ---
 
