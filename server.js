@@ -365,23 +365,24 @@ app.post('/api/create-invoice', async (req, res) => {
 
     if (lines.length === 0) return res.status(400).json({ error: 'No matching SKUs found in QuickBooks.' });
 
-    // ===== ⑥ PrivateNote（価格ソース内訳を記録） =====
-    const privateNote = pricedItems
+    // ===== ⑥ 価格ソース内訳：社内ログにのみ記録（QBOには載せない＝顧客への漏洩防止） ===== // ← 変更
+    const priceBreakdown = pricedItems
       .filter(p => p.source !== 'error')
       .map(p => {
         let line = `${p.sku}: ${p.source} $${p.finalPrice}`;
         if (p.source === 'custom' && p.note) line += ` (${p.note})`;
         return line;
       })
-      .join('\n');
+      .join(' | ');
+    console.log(`[Pricing] customer=${orderCustomerInternalId}: ${priceBreakdown}`); // ← 変更（QBOのPrivateNote廃止→サーバーログ記録）
 
     // ===== ⑦ dry-run: ここで終わり（既存削除も実Invoice作成もスキップ） =====
     if (dryRun) {
       console.log('[DRY-RUN] Would create QBO Invoice:');
       console.log(JSON.stringify({
         CustomerRef: { value: customerId },
-        TxnDate: deliveryDate, // ← 変更（実送信側に合わせ ShipDate 廃止）
-        Line: lines, PrivateNote: privateNote,
+        TxnDate: deliveryDate,
+        Line: lines, // ← 変更（PrivateNoteは載せない。内訳は上の [Pricing] ログ参照）
       }, null, 2));
       return res.json({
         success: true, dryRun: true,
@@ -420,7 +421,7 @@ app.post('/api/create-invoice', async (req, res) => {
       {
         CustomerRef: { value: customerId },
         TxnDate: deliveryDate, // ← 変更（ShipDateは廃止しTxnDateのみ＝origin修正を採用）
-        Line: lines, PrivateNote: privateNote, // PrivateNote=価格ソース内訳（feature側）
+        Line: lines, // ← 変更（PrivateNote廃止＝顧客ステートメントへの内訳漏洩防止。内訳は [Pricing] ログ）
       },
       { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
     );
