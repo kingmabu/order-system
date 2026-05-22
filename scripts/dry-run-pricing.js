@@ -48,8 +48,15 @@ async function main() {
   const weightItem = items.find(i => !i.isUnit && i.basePrice > 0);
   const boxItem = items.find(i => i.isUnit && i.basePrice > 0);
 
-  // Custom Price が登録されている (customerId, sku) のサンプルも拾う
-  const cpSamples = customPrices.slice(0, 5);
+  // Custom Price が登録されている (customerId, sku) のサンプルを拾う
+  // 疑似グループ(GROUP_B/C/D)を優先的に1件ずつ + Individual 2件
+  const pick = key => customPrices.find(cp => cp.customerId === key);
+  const cpSamples = [
+    pick('GROUP_B'),
+    pick('GROUP_C'),
+    pick('GROUP_D'),
+    ...customPrices.filter(cp => !['GROUP_B', 'GROUP_C', 'GROUP_D'].includes(cp.customerId)).slice(0, 2),
+  ].filter(Boolean);
 
   console.log('--- 代表SKU ---');
   if (weightItem) console.log(`量り売り: ${weightItem.sku} ${weightItem.itemName} 標準=${fmt(weightItem.basePrice)}`);
@@ -59,7 +66,7 @@ async function main() {
   const testSkus = [weightItem, boxItem].filter(Boolean).map(i => i.sku);
 
   console.log('--- 分類別 価格決定 ---');
-  for (const group of ['Standard', 'Group A', 'Group B', 'Group C', 'Individual']) {
+  for (const group of ['Standard', 'Group A', 'Group B', 'Group C', 'Group D', 'Individual']) {
     const client = byGroup[group];
     if (!client) {
       console.log(`[${group}] 代表顧客なし（このグループの顧客が見つからない）`);
@@ -79,10 +86,10 @@ async function main() {
     // この customerId が Individual / GROUP_C などどれでもそのまま検証
     // 検索元の顧客を特定（GROUP_B/C は擬似ID）
     let testCustomerId = cp.customerId;
-    if (cp.customerId === 'GROUP_B') {
-      const m = clients.find(c => c.priceGroup === 'Group B'); testCustomerId = m ? m.customerId : null;
-    } else if (cp.customerId === 'GROUP_C') {
-      const m = clients.find(c => c.priceGroup === 'Group C'); testCustomerId = m ? m.customerId : null;
+    const pseudoToGroup = { GROUP_B: 'Group B', GROUP_C: 'Group C', GROUP_D: 'Group D' };
+    if (pseudoToGroup[cp.customerId]) {
+      const m = clients.find(c => c.priceGroup === pseudoToGroup[cp.customerId]);
+      testCustomerId = m ? m.customerId : null;
     }
     if (!testCustomerId) { console.log(`   ${cp.customerId} ${cp.sku}: 対応顧客なし（スキップ）`); continue; }
     const r = determinePrice({ customerId: testCustomerId, sku: cp.sku, clients, items, customPrices });
