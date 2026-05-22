@@ -114,7 +114,8 @@
 - [x] D-3.（**env設定後**）`feature/custom-prices` → `main` へマージし push ✅ 2026-05-22。origin/main `03a8592..1133736`。
         ⚠ origin/mainが先行していたため単純ffではなく、origin/mainをfeatureに統合（衝突: server.js / package.json）してからpush。
         統合後 dry-run緑・構文OK確認済。Renderへ自動デプロイ。
-- [ ] D-4. デプロイ確認（**次**）：Render起動ログにエラーがないこと。`QBO_MODE=dry-run` で起動していること。フライヤー機能も無傷か確認。
+- [x] D-4. デプロイ確認 ✅ 2026-05-22：commit `1133736` Live。ログ `Build successful`→`Server running on port 10000`→`Tokens loaded from Sheets, realmId: 734182100`→`Your service is live`。起動クラッシュ無し。
+        ※起動ログにQBO_MODEは出ないため、dry-run稼働の確認は E-1（実注文→`[DRY-RUN]`ログ）で行う。公開URL `https://order-system-5zq7.onrender.com`（`/`は404が正常）。
 
 ---
 
