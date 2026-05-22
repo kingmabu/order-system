@@ -4,8 +4,9 @@
 
 **実装中、迷ったら必ずこのファイルに戻ってください。**
 
-> ⚠ **2026-05-15 設計変更**：顧客分類を**5分類**（Standard / Group A / Group B / Group C / Individual）に拡張しました。 // ← 変更
-> 本ファイル内に「3パターン」「Individual のみ」等の旧記述がある場合は、5分類読み替えてください。
+> ⚠ **2026-05-22 設計変更**：顧客分類を**6分類**（Standard / Group A / Group B / Group C / **Group D** / Individual）に拡張しました。 // ← 変更
+> 本ファイル内に「3パターン」「5分類」「Individual のみ」等の旧記述がある場合は、6分類で読み替えてください。
+> Group D（Ramen Joint-Aikan 5社）は Group B/C と同じ共通カスタム価格方式（疑似ID `GROUP_D`）です。
 
 ---
 

@@ -1,12 +1,13 @@
 # 手順書3：Custom Prices 約55レコードを入力する（5分類版）
 
-このドキュメントは、開発用 Cost list の **Custom Prices シート**に、Individual 9社 + Group B（Daikoku共通）+ Group C（Manpuku共通）の個別単価を**「価格管理」メニュー経由**で入力するための作業手順書です。
+このドキュメントは、開発用 Cost list の **Custom Prices シート**に、Individual 9社 + Group B（Daikoku共通）+ Group C（Manpuku共通）+ Group D（Ramen Joint-Aikan共通）の個別単価を**「価格管理」メニュー経由**で入力するための作業手順書です。 // ← 変更（Group D追加）
 
-- **想定所要時間**：**1.5〜2時間**（1件あたり 1〜2分 × 約55件）
-- **入力件数**：**約 55レコード**
+- **想定所要時間**：**1.5〜2時間**（1件あたり 1〜2分 × 約60件）
+- **入力件数**：**約 60レコード**
   - **Individual 9社**：各社 約5アイテム = **約45レコード**
-  - **Group B**（Daikoku共通）：約**5レコード**（疑似ID `GROUP_B` で1セット、6社で共有）
-  - **Group C**（Manpuku共通）：約**5レコード**（疑似ID `GROUP_C` で1セット、4社で共有）
+  - **Group B**（Daikoku共通）：疑似ID `GROUP_B` で1セット、6社で共有
+  - **Group C**（Manpuku共通）：疑似ID `GROUP_C` で1セット、4社で共有
+  - **Group D**（Ramen Joint-Aikan共通）：疑似ID `GROUP_D` で1セット、5社で共有 ← 2026-05-22追加
 - **対象スプレッドシート**：開発用 Cost list（ID: `1NPCw-Bz0kokXEe2Tv2PcF9XkQsa1c5IqiGh3IIkWpV8`）
 
 ---

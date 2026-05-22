@@ -10,6 +10,7 @@
  *   - Group A (12社) → ベース価格 × 1.020（+2.00%）
  *   - Group B (6社)  → Custom Prices の "GROUP_B" 共有設定を使用 / 未登録ならStandardフォールバック
  *   - Group C (4社)  → Custom Prices の "GROUP_C" 共有設定を使用 / 未登録ならStandardフォールバック
+ *   - Group D (5社)  → Custom Prices の "GROUP_D" 共有設定を使用 / 未登録ならStandardフォールバック // ← 変更（Ramen Joint-Aikan）
  *   - Individual (9社) → Custom Prices の Customer ID 検索 / 未登録ならStandardフォールバック
  */
 
@@ -17,9 +18,10 @@ const { normalizeId } = require('./sheets-client');
 
 const GROUP_A_MARKUP = 0.020; // +2.00%（QBO本番 Pricing Rules: Jinya Group = Fixed 2.00%）
 
-// Group B / Group C は Custom Prices シートで疑似Customer IDを使って共有価格を持つ // ← 変更
+// Group B / Group C / Group D は Custom Prices シートで疑似Customer IDを使って共有価格を持つ // ← 変更
 const GROUP_B_LOOKUP_KEY = 'GROUP_B'; // ← 変更
 const GROUP_C_LOOKUP_KEY = 'GROUP_C'; // ← 変更
+const GROUP_D_LOOKUP_KEY = 'GROUP_D'; // ← 変更（Ramen Joint-Aikan 5社共通）
 
 /**
  * 価格を小数点以下2桁に丸める
@@ -32,12 +34,14 @@ function roundPrice(price) {
  * priceGroup から Custom Prices シートの lookup key を決定 // ← 変更（共通化）
  *  - Group B    → 'GROUP_B'
  *  - Group C    → 'GROUP_C'
+ *  - Group D    → 'GROUP_D' // ← 変更
  *  - Individual → 顧客自身のCustomer ID
  *  - それ以外    → null（Custom Prices は引かない）
  */
 function getCustomLookupKey(priceGroup, normalizedCustomerId) {
   if (priceGroup === 'Group B') return GROUP_B_LOOKUP_KEY;
   if (priceGroup === 'Group C') return GROUP_C_LOOKUP_KEY;
+  if (priceGroup === 'Group D') return GROUP_D_LOOKUP_KEY; // ← 変更
   if (priceGroup === 'Individual') return normalizedCustomerId;
   return null;
 }
@@ -156,5 +160,6 @@ module.exports = {
   GROUP_A_MARKUP,
   GROUP_B_LOOKUP_KEY, // ← 変更（テストや他モジュールから参照可能に）
   GROUP_C_LOOKUP_KEY, // ← 変更
+  GROUP_D_LOOKUP_KEY, // ← 変更
   getCustomLookupKey, // ← 変更
 };

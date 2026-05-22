@@ -13,8 +13,21 @@
 - ✅ 手順書1（5択版で再実行・W列プルダウン5択化済み）
 - ✅ 手順書2（95社分類入力済：Group A=12 / B=6 / C=4 / Individual=9 / Standard=64）
 - ✅ Cost list Apps Script デプロイ（5分類対応・フォーム動作確認済：Group B/C + Individual 9社=11項目表示）
+- ✅ 手順書3（Custom Prices 32件登録）＋ dry-run検証完了
+- ✅ 箱単価/Custom Price/Customer IDパースの3バグ修正（commit 3f5f971/9936d6e/a0a2ee3）
 
-**次セッションでは「パターンE：手順書3から開始」で進める**（下記参照）。
+## 🆕 2026-05-22：Group D（Ramen Joint-Aikan 5社）追加 — 6分類化
+- コード変更済み（node検証OK・**未デプロイ/未分類**）：
+  - `routes/pricing.js`（GROUP_D_LOOKUP_KEY・分岐・export）
+  - `apps-script/cost-list-dev/custom_prices_form_main.js`（GROUP_D定数/表示名/getCustomPriceTargets/addCustomPrice）
+  - `apps-script/cost-list-dev/custom_prices_form.html`（Edit/Delete用GROUP_D仮想エントリ）
+  - `apps-script/client-info-dev/setup_price_group.js`（PG_VALID_GROUPS 6択化）
+- **残作業（Group D）**：
+  1. Client Info で `setupPriceGroupColumns` を6択版で再実行（W列プルダウンに Group D 追加）
+  2. Ramen Joint-Aikan 5社を W列で `Group D` に分類
+  3. Cost list へ `custom_prices_form_main.gs` / `custom_prices_form.html` を再デプロイ
+  4. フォームで `🟢 Group D` を選び、GROUP_D 共通価格を登録
+  5. dry-run 再実行（`node -r dotenv/config scripts/dry-run-pricing.js dotenv_config_path=.env.development`）で Group D 検証
 
 ---
 

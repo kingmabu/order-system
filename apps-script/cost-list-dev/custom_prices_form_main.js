@@ -12,11 +12,13 @@
 const CP_SHEET = 'Custom Prices';
 const CP_LOG_SHEET = 'Custom Price Log';
 
-// Group B / Group C は Custom Prices シートに「疑似Customer ID」で共有価格を持つ // ← 変更（5分類対応）
+// Group B / Group C / Group D は Custom Prices シートに「疑似Customer ID」で共有価格を持つ // ← 変更（5分類対応→6分類）
 const GROUP_B_LOOKUP_KEY = 'GROUP_B'; // ← 変更
 const GROUP_C_LOOKUP_KEY = 'GROUP_C'; // ← 変更
+const GROUP_D_LOOKUP_KEY = 'GROUP_D'; // ← 変更（Ramen Joint-Aikan 5社共通）
 const GROUP_B_DISPLAY_NAME = 'Group B (Daikoku - 6社共通)'; // ← 変更
 const GROUP_C_DISPLAY_NAME = 'Group C (Manpuku - 4社共通)'; // ← 変更
+const GROUP_D_DISPLAY_NAME = 'Group D (Ramen Joint-Aikan - 5社共通)'; // ← 変更
 
 // Client Information のスプレッドシートID（開発用） // ← 変更
 const CLIENT_INFO_ID = '1Jqmqs-FVmhXrG7GqPbh6bkvaRWHZXtAEHUsWkZV4f8o'; // ← 変更（開発用ID）
@@ -194,9 +196,9 @@ function getIndividualCustomers() {
 
 /**
  * Custom Price 入力対象の一覧を取得（Add モードで使用） // ← 変更（新規追加）
- * Group B / Group C の仮想エントリ（共有価格用）＋ Individual 顧客 を返す。
- * - Group B/C は Client list に該当顧客がいる場合のみ追加（社数表示は実件数）。
- * - 仮想エントリは id='GROUP_B' / 'GROUP_C'、isGroup=true で識別。
+ * Group B / Group C / Group D の仮想エントリ（共有価格用）＋ Individual 顧客 を返す。 // ← 変更
+ * - Group B/C/D は Client list に該当顧客がいる場合のみ追加（社数表示は実件数）。
+ * - 仮想エントリは id='GROUP_B' / 'GROUP_C' / 'GROUP_D'、isGroup=true で識別。
  * @return {Array} [{ id, name, isGroup }, ...]
  */
 function getCustomPriceTargets() {
@@ -210,6 +212,7 @@ function getCustomPriceTargets() {
   const data = sh.getRange(2, 1, lastRow - 1, CL_COL_PRICE_GROUP).getValues();
   let countGroupB = 0;
   let countGroupC = 0;
+  let countGroupD = 0; // ← 変更
   const individuals = [];
 
   data.forEach(row => {
@@ -219,6 +222,7 @@ function getCustomPriceTargets() {
     if (!id || !name) return;
     if (group === 'Group B') countGroupB++;
     else if (group === 'Group C') countGroupC++;
+    else if (group === 'Group D') countGroupD++; // ← 変更
     else if (group === 'Individual') {
       individuals.push({ id: _normalizeId_(id), name: name, isGroup: false });
     }
@@ -236,6 +240,13 @@ function getCustomPriceTargets() {
     result.push({
       id: GROUP_C_LOOKUP_KEY,
       name: `🔶 Group C (Manpuku - ${countGroupC}社共通)`,
+      isGroup: true,
+    });
+  }
+  if (countGroupD > 0) { // ← 変更
+    result.push({
+      id: GROUP_D_LOOKUP_KEY,
+      name: `🟢 Group D (Ramen Joint-Aikan - ${countGroupD}社共通)`,
       isGroup: true,
     });
   }
@@ -377,14 +388,16 @@ function addCustomPrice(data) {
       };
     }
 
-    // Customer Name を解決 // ← 変更（Group B/C 疑似ID対応）
-    // - GROUP_B / GROUP_C は Client list に存在しないので仮想表示名を使う
+    // Customer Name を解決 // ← 変更（Group B/C/D 疑似ID対応）
+    // - GROUP_B / GROUP_C / GROUP_D は Client list に存在しないので仮想表示名を使う
     // - それ以外は従来通り Client list から取得
     let customerName;
     if (normId === GROUP_B_LOOKUP_KEY) {
       customerName = GROUP_B_DISPLAY_NAME;
     } else if (normId === GROUP_C_LOOKUP_KEY) {
       customerName = GROUP_C_DISPLAY_NAME;
+    } else if (normId === GROUP_D_LOOKUP_KEY) { // ← 変更
+      customerName = GROUP_D_DISPLAY_NAME;
     } else {
       const customer = getAllCustomers().find(c => c.id === normId);
       if (!customer) return { success: false, message: '顧客が見つかりません' };

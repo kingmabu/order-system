@@ -19,10 +19,13 @@
 | **Group A** | **12社** | `Group A` | **`2.00`** | Jinya Group の各店舗（一律 +2.00%） |
 | **Group B** | **6社** | `Group B` | （空欄） | Daikoku Group の各店舗（共通カスタム価格） |
 | **Group C** | **4社** | `Group C` | （空欄） | Manpuku の各店舗（共通カスタム価格） |
+| **Group D** | **5社** | `Group D` | （空欄） | Ramen Joint-Aikan の各店舗（共通カスタム価格） ← 2026-05-22追加 |
 | **Individual** | **9社** | `Individual` | （空欄） | 各社個別カスタム価格 |
-| **Standard** | 残り（**約30社**） | `Standard` | （空欄） | 上記以外すべて |
+| **Standard** | 残り | `Standard` | （空欄） | 上記以外すべて |
 
-**合計：12 + 6 + 4 + 9 + Standard = 全顧客数**
+**合計：12 + 6 + 4 + 5 + 9 + Standard = 全顧客数**
+
+> 💡 **Group D（Ramen Joint-Aikan 5社）** は Group B/C と同じ「共通カスタム価格」方式です。W列に `Group D` を入力し、Custom Prices シートには疑似ID `GROUP_D` で1セットだけ価格を登録します（手順書3）。X列は空欄。
 
 ---
 
