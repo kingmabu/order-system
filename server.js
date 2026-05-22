@@ -319,16 +319,17 @@ app.post('/api/create-invoice', async (req, res) => {
       console.warn('[create-invoice] price decision warnings:', warnings);
     }
 
-    // ===== ④ QBOアイテムIDを一括取得（SKU IN (...) で1リクエスト） =====
+    // ===== ④ QBOアイテムIDを取得（SKUごとに照合） =====
+    // ← 変更: QBOクエリ言語は Sku に対する IN 句が効かず空で返るため、旧実装どおり = で1件ずつ引く
     const skuList = pricedItems.filter(p => p.source !== 'error').map(p => p.sku);
-    const skuQuoted = skuList.map(s => `'${s.replace(/'/g, "\\'")}'`).join(',');
-    const itemQuery = await axios.get(
-      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT Id, Sku, Description FROM Item WHERE Sku IN (${skuQuoted})`)}`,
-      { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
-    );
     const qboItemsBySku = new Map();
-    for (const qi of (itemQuery.data.QueryResponse?.Item || [])) {
-      qboItemsBySku.set(String(qi.Sku || '').trim(), qi);
+    for (const sku of skuList) {
+      const itemRes = await axios.get(
+        `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT Id, Sku, Description FROM Item WHERE Sku = '${String(sku).replace(/'/g, "\\'")}'`)}`,
+        { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
+      );
+      const found = itemRes.data.QueryResponse?.Item?.[0];
+      if (found) qboItemsBySku.set(String(found.Sku || '').trim(), found);
     }
 
     // ===== ⑤ Lineを構築（UnitPrice は計算済み finalPrice を必ず使用） =====
