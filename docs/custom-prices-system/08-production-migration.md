@@ -45,17 +45,17 @@
 - [ ] A-3. `checkClientListStatus` で現状確認（最終列・ヘッダー）
 - [ ] A-4. `setupPriceGroupColumns` 実行 → W列(Price Group)/X列(Markup %) 追加、6択プルダウン
 - [ ] A-5. 全顧客を6分類に入力（手順書2）：
-        Group A=12 / Group B=6 / Group C=4 / Group D=5 / Individual=8 / 残りStandard
+        Group A=12 / Group B=6 / Group C=4 / Group D=5 / Individual=9 / 残りStandard
         ※開発用と同じCustomer IDで分類（下記リスト参照）
 - [ ] A-6. X列：Group A の12社に `2.00`
-- [ ] A-7. COUNTIF で件数確認（A=12 / B=6 / C=4 / D=5 / Individual=8）
+- [ ] A-7. COUNTIF で件数確認（A=12 / B=6 / C=4 / D=5 / Individual=9）
 
 ### 分類リスト（開発用と同一・本番でも同じCustomer ID）
 - Group A(12)：060/008/021/024/084/093/051/062/022/068/094/061
 - Group B(6)：064/025/013/014/002/003
 - Group C(4)：001/019/016/028
 - Group D(5)：035/045/070/088/033 （088はIndividualではなくGroup D）
-- Individual(8)：011/080/018/053/050/083/006/048 （※088を除外）
+- Individual(9)：011/080/018/054/053/050/083/006/048 （※088を除外。054 KAI RAMENを追加＝当初の計画から漏れていた。開発環境では当初からIndividualで5件の個別価格あり）
 
 ---
 
@@ -73,7 +73,7 @@
 - [ ] B-3. `custom_prices_form_main.gs` / `custom_prices_form.html` / `cost_reference.gs`(`_main.gs` のメニュー登録) を配置
         ※既存業務スクリプトは上書きしない。「価格管理」メニューが onOpen で追加される構成を確認
 - [ ] B-4. リロード → メニュー「価格管理」表示、フォームの顧客プルダウンに
-        🔷 Group B / 🔶 Group C / 🟢 Group D / Individual 8社 が出るか確認
+        🔷 Group B / 🔶 Group C / 🟢 Group D / Individual 9社 が出るか確認
 - [ ] B-5. Custom Prices シートのA列をテキスト書式、E列を通貨書式に（または初回 addCustomPrice 時に自動）
 
 > 💡 **将来の保守性**：CLIENT_INFO_ID / ITEM_LIST_ID を Script Properties 化すれば、
@@ -83,10 +83,11 @@
 
 ## 4. ステップC：本番 Custom Prices に価格登録
 
-- [ ] C-1. 開発用 Custom Prices の33件（GROUP_B/C/D + Individual 8社分）を本番に登録
+- [x] C-0. **（前提）本番 Client list で 054 KAI RAMEN を Standard → Individual に変更**（W列）。✅ 2026-05-22完了。Individual=9社/Standard=59社に検証OK。
+- [x] C-1. 開発用 Custom Prices の33件（GROUP_B/C/D + Individual 9社分）を本番に登録 ✅ 2026-05-22完了（方法2：範囲コピー A2:G34）
         - 方法1：フォーム「価格管理 → 個別価格を追加」で1件ずつ（ログ・検証付き）
         - 方法2：開発用 Custom Prices シートの内容を本番にコピー（A列テキスト/E列通貨書式に注意）
-- [ ] C-2. 件数・実値を確認（開発用と一致するか）
+- [x] C-2. 件数・実値を確認（開発用と一致するか）✅ 2026-05-22 全33件一致（customerId・SKU・価格すべてOK、先頭ゼロ保持、価格ズレなし）
 
 ---
 
