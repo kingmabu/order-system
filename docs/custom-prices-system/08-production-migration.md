@@ -126,11 +126,24 @@
         - Group B（Daikoku Annex 064）：**P057=$2.84 `custom`（GROUP_B共通）**、他はStandardフォールバック＝設計どおり
         - PrivateNote に価格ソース内訳が出力、`[DRY-RUN]` で実インボイス未作成、TxnDateのみ。
         - ⚠ この過程で本番フロー初実行のバグを2つ修正（commit fb870e7/c34db89）：QBOクエリは(a) `Sku` への `IN` 句が空で返る (b) `Sku` を `SELECT` 射影に含めると空で返る → 旧実装どおり `SELECT * ... WHERE Sku='..'` を1件ずつに修正。
-- [ ] E-2. **自社（MY Inc.）顧客でテスト**：実際にインボイス作成（dry-run）→ 価格が正しいか
-- [ ] E-3. **先行1〜2社**：ここで初めて `QBO_MODE=production` に切替を検討。
-        対象を絞って実インボイスを作成し、QBO上の金額を目視確認
-- [ ] E-4. 問題なければ **Group A → Group B/C/D → Individual → 全顧客** と順次拡大
-- [ ] E-5. 1〜2請求サイクル安定稼働を確認
+- [ ] E-2. **自社（MY Inc.）顧客でテスト**：実際にインボイス作成（dry-run）→ 価格が正しいか（任意。E-1で全パス実証済のため省略可）
+
+### 段階展開の仕組み（顧客許可リスト方式・2026-05-22実装 commit予定）
+`QBO_MODE` は全体スイッチのため、顧客単位の段階展開ができるよう `server.js` にゲートを追加した。
+- **実インボイス発行の条件**：`QBO_MODE=production` **かつ** 注文顧客が `PRODUCTION_CUSTOMER_IDS` に含まれる
+- `PRODUCTION_CUSTOMER_IDS`：Customer ID の CSV（例 `064,060`）。`ALL` または `*` で全顧客本番化。
+- **それ以外（`QBO_MODE`≠production / 未許可顧客 / リスト未設定 / 設定漏れ）は全て dry-run**（安全側）。
+- 判定理由は `[MODE] dry-run|PRODUCTION (...)` ログに出る。Customer ID はゼロ埋め正規化（`64`=`064`）。
+- 真理値表検証済（9ケース）。現状 env（`QBO_MODE=dry-run`・リスト未設定）では**全員 dry-run のまま**。
+
+- [ ] E-3. **先行1〜2社で初の実インボイス**（次セッション推奨）：
+        1. 先行顧客を決める（例：Group A の 060、または Group B の 064）
+        2. Render env に `PRODUCTION_CUSTOMER_IDS=<その顧客ID>` を追加 → さらに `QBO_MODE=production` に変更（再デプロイ）
+        3. その顧客の注文を流す → ログ `[MODE] PRODUCTION ...` を確認 → **QBO上で実インボイスの金額を目視**
+        4. 他社の注文は引き続き dry-run（ログ `[MODE] dry-run ...`）であることも確認
+        5. 異常時は即 `QBO_MODE=dry-run` に戻す（§7 ロールバック）
+- [ ] E-4. 問題なければ `PRODUCTION_CUSTOMER_IDS` に **Group A → Group B/C/D → Individual** と順次追加。最後に `ALL` で全顧客本番化。
+- [ ] E-5. 1〜2請求サイクル安定稼働を確認 → **Choco 解約**
 
 ---
 

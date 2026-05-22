@@ -4,7 +4,7 @@ const multer = require('multer');
 const { google } = require('googleapis');
 const QBOAuth = require('./routes/qboAuth');
 const { getValidToken } = QBOAuth;
-const { loadAllDataSources } = require('./routes/sheets-client'); // ← 変更
+const { loadAllDataSources, normalizeId } = require('./routes/sheets-client'); // ← 変更
 const { determinePricesForOrder } = require('./routes/pricing'); // ← 変更
 const nodemailer = require('nodemailer');
 const path = require('path');
@@ -271,7 +271,17 @@ app.post('/api/create-invoice', async (req, res) => {
     const baseUrl = process.env.QBO_ENV === 'production'
       ? 'https://quickbooks.api.intuit.com'
       : 'https://sandbox-quickbooks.api.intuit.com';
-    const dryRun = process.env.QBO_MODE === 'dry-run'; // ← 変更
+    // ← 変更: 段階展開ゲート。実インボイス発行は QBO_MODE=production かつ
+    //   顧客が PRODUCTION_CUSTOMER_IDS（"ALL"/"*"=全員、または Customer ID のCSV）に含まれる場合のみ。
+    //   それ以外（dry-run / 未許可顧客 / 設定漏れ）は dry-run でQBO送信しない（安全側）。
+    const isProductionMode = process.env.QBO_MODE === 'production';
+    const allowRaw = (process.env.PRODUCTION_CUSTOMER_IDS || '').trim();
+    const allowAll = /^(all|\*)$/i.test(allowRaw);
+    const allowSet = new Set(allowRaw.split(',').map(s => normalizeId(s)).filter(Boolean));
+    const orderCustomerInternalId = normalizeId(data.customer_id || data.customerId);
+    const customerAllowed = allowAll || allowSet.has(orderCustomerInternalId);
+    const dryRun = !(isProductionMode && customerAllowed);
+    console.log(`[MODE] ${dryRun ? 'dry-run' : 'PRODUCTION'} (QBO_MODE=${process.env.QBO_MODE || '(unset)'}, customer=${orderCustomerInternalId}, allowAll=${allowAll}, allowed=${customerAllowed})`);
 
     // ===== ① Customer ID 解決（既存ロジック維持） =====
     let customerId = data.qboSystemId || null;
