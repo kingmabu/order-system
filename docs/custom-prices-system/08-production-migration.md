@@ -121,8 +121,11 @@
 
 ## 6. ステップE：段階的展開（QBO_MODE 切替は慎重に）
 
-- [ ] E-1. **本番 dry-run 検証**：`QBO_MODE=dry-run` のまま各分類の顧客で注文を流し、
-        `[Pricing]` ログ・PrivateNote の価格ソース内訳（custom/group-a/standard/fallback）を確認
+- [x] E-1. **本番 dry-run 検証** ✅ 2026-05-22：`QBO_MODE=dry-run` のまま本番フォームから2件流して確認。
+        - Group A（Jinya系）：C004 標準$19.15→**$19.53**、P036 $19.82→**$20.22**（×1.020）＝`group-a` 正常
+        - Group B（Daikoku Annex 064）：**P057=$2.84 `custom`（GROUP_B共通）**、他はStandardフォールバック＝設計どおり
+        - PrivateNote に価格ソース内訳が出力、`[DRY-RUN]` で実インボイス未作成、TxnDateのみ。
+        - ⚠ この過程で本番フロー初実行のバグを2つ修正（commit fb870e7/c34db89）：QBOクエリは(a) `Sku` への `IN` 句が空で返る (b) `Sku` を `SELECT` 射影に含めると空で返る → 旧実装どおり `SELECT * ... WHERE Sku='..'` を1件ずつに修正。
 - [ ] E-2. **自社（MY Inc.）顧客でテスト**：実際にインボイス作成（dry-run）→ 価格が正しいか
 - [ ] E-3. **先行1〜2社**：ここで初めて `QBO_MODE=production` に切替を検討。
         対象を絞って実インボイスを作成し、QBO上の金額を目視確認
