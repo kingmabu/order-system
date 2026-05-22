@@ -16,6 +16,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use('/auth', QBOAuth);
+app.use('/api/flyer', require('./routes/flyerExport'));
 
 const imageStore = new Map();
 
@@ -170,7 +171,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
       'https://api.anthropic.com/v1/messages',
       {
         model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        max_tokens: 2048,
         messages: [{
           role: 'user',
           content: [
@@ -367,7 +368,7 @@ app.post('/api/create-invoice', async (req, res) => {
       console.log('[DRY-RUN] Would create QBO Invoice:');
       console.log(JSON.stringify({
         CustomerRef: { value: customerId },
-        ShipDate: deliveryDate, TxnDate: deliveryDate,
+        TxnDate: deliveryDate, // ← 変更（実送信側に合わせ ShipDate 廃止）
         Line: lines, PrivateNote: privateNote,
       }, null, 2));
       return res.json({
@@ -381,7 +382,7 @@ app.post('/api/create-invoice', async (req, res) => {
 
     // ===== ⑧ 既存インボイスを削除（未払いのみ。支払い済みはスキップ） =====
     const existingQuery = await axios.get(
-      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Invoice WHERE CustomerRef = '${customerId}' AND ShipDate = '${deliveryDate}'`)}`,
+     `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(`SELECT * FROM Invoice WHERE CustomerRef = '${customerId}' AND TxnDate = '${deliveryDate}'`)}`,
       { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
     );
     const existingInvoices = existingQuery.data.QueryResponse.Invoice || [];
@@ -406,8 +407,8 @@ app.post('/api/create-invoice', async (req, res) => {
       `${baseUrl}/v3/company/${realmId}/invoice`,
       {
         CustomerRef: { value: customerId },
-        ShipDate: deliveryDate, TxnDate: deliveryDate,
-        Line: lines, PrivateNote: privateNote,
+        TxnDate: deliveryDate, // ← 変更（ShipDateは廃止しTxnDateのみ＝origin修正を採用）
+        Line: lines, PrivateNote: privateNote, // PrivateNote=価格ソース内訳（feature側）
       },
       { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
     );

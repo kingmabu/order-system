@@ -93,16 +93,26 @@
 
 ## 5. ステップD：order-system（Render.com）本番反映
 
-- [ ] D-1. `feature/custom-prices` を最新化し、テスト（dry-run）が緑であることを確認
-- [ ] D-2. `feature/custom-prices` → `main` へマージ（PR作成 → レビュー → マージ）
-- [ ] D-3. Render.com の環境変数を確認・設定：
-        - `GOOGLE_SERVICE_ACCOUNT`（本番サービスアカウントJSON・既設のはず）
-        - `COST_LIST_ID` = `1dC88enQ...`（本番）
-        - `ITEM_LIST_ID` = `14dKo33u...`（本番）
-        - `CLIENT_INFO_ID` = `1CG07N6t...`（本番）
-        - `CUSTOM_PRICES_SHEET` / `CLIENT_LIST_SHEET` / `ITEM_LIST_SHEET`（デフォルトでOKなら不要）
+> 🛑 **順序が重要（当初の D-2→D-3 から変更）**：`QBO_MODE` は新規変数で、
+> `server.js` は `process.env.QBO_MODE === 'dry-run'` のときだけQBO送信をスキップする。
+> 未設定だと新コードは**本番モードで即実インボイス送信**になる。
+> よって **環境変数（旧D-3）をマージ（旧D-2）より先**に設定する。
+> 現行(main)コードは `QBO_MODE`/`COST_LIST_ID`/`ITEM_LIST_ID`/`CLIENT_INFO_ID` を参照しないので、
+> マージ前にこれらを入れても現行本番運用には無影響（env変更で現行コードが再デプロイされても挙動不変）。
+
+- [x] D-1. `feature/custom-prices` のテスト（dry-run）が緑であることを確認 ✅ 2026-05-22。main は feature の祖先（feature が22コミット先行）＝マージはfast-forwardでコンフリクトなし。
+- [ ] D-2.（**先に実施**）Render.com の環境変数を設定・確認：
+        【新規追加（必須）】
         - **`QBO_MODE=dry-run`（最初は必ず dry-run で開始）**
-- [ ] D-4. デプロイ。起動ログにエラーがないこと
+        - `COST_LIST_ID`   = `1dC88enQnxjK8-GgxQhA6z4xiICUZ-ShFGnzcYySY73k`（本番・Custom Pricesを含む）
+        - `ITEM_LIST_ID`   = `14dKo33uLpVlHKF5RM6aM7oj-Y4lv1CnQbGQcpatrbfc`（本番）
+        - `CLIENT_INFO_ID` = `1CG07N6tYpIoPD_vp0cQ8lu_uMAVO4NRwuvL_J6-fTe8`（本番）
+        【既存・確認のみ（変更しない）】
+        - `GOOGLE_SERVICE_ACCOUNT`（本番SAのJSON）/ `QBO_ENV` / `CLIENTS_SHEET_ID` / `GOOGLE_SHEET_ID`
+        【任意・デフォルトで本番一致を確認済（設定不要）】
+        - `CUSTOM_PRICES_SHEET`='Custom Prices' / `CLIENT_LIST_SHEET`='Client list' / `ITEM_LIST_SHEET`='商品一覧'
+- [ ] D-3.（**env設定後**）`feature/custom-prices` → `main` へマージし push（fast-forward）。Render が自動デプロイ。
+- [ ] D-4. デプロイ。起動ログにエラーがないこと。`QBO_MODE=dry-run` で起動していることを確認
 
 ---
 
