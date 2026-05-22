@@ -101,7 +101,7 @@
 > マージ前にこれらを入れても現行本番運用には無影響（env変更で現行コードが再デプロイされても挙動不変）。
 
 - [x] D-1. `feature/custom-prices` のテスト（dry-run）が緑であることを確認 ✅ 2026-05-22。main は feature の祖先（feature が22コミット先行）＝マージはfast-forwardでコンフリクトなし。
-- [ ] D-2.（**先に実施**）Render.com の環境変数を設定・確認：
+- [x] D-2.（**先に実施**）Render.com の環境変数を設定・確認：✅ 2026-05-22 Manabu設定完了（QBO_MODE=dry-run＋3ID）
         【新規追加（必須）】
         - **`QBO_MODE=dry-run`（最初は必ず dry-run で開始）**
         - `COST_LIST_ID`   = `1dC88enQnxjK8-GgxQhA6z4xiICUZ-ShFGnzcYySY73k`（本番・Custom Pricesを含む）
@@ -111,8 +111,10 @@
         - `GOOGLE_SERVICE_ACCOUNT`（本番SAのJSON）/ `QBO_ENV` / `CLIENTS_SHEET_ID` / `GOOGLE_SHEET_ID`
         【任意・デフォルトで本番一致を確認済（設定不要）】
         - `CUSTOM_PRICES_SHEET`='Custom Prices' / `CLIENT_LIST_SHEET`='Client list' / `ITEM_LIST_SHEET`='商品一覧'
-- [ ] D-3.（**env設定後**）`feature/custom-prices` → `main` へマージし push（fast-forward）。Render が自動デプロイ。
-- [ ] D-4. デプロイ。起動ログにエラーがないこと。`QBO_MODE=dry-run` で起動していることを確認
+- [x] D-3.（**env設定後**）`feature/custom-prices` → `main` へマージし push ✅ 2026-05-22。origin/main `03a8592..1133736`。
+        ⚠ origin/mainが先行していたため単純ffではなく、origin/mainをfeatureに統合（衝突: server.js / package.json）してからpush。
+        統合後 dry-run緑・構文OK確認済。Renderへ自動デプロイ。
+- [ ] D-4. デプロイ確認（**次**）：Render起動ログにエラーがないこと。`QBO_MODE=dry-run` で起動していること。フライヤー機能も無傷か確認。
 
 ---
 
