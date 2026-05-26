@@ -142,7 +142,12 @@
         3. その顧客の注文を流す → ログ `[MODE] PRODUCTION ...` を確認 → **QBO上で実インボイスの金額を目視**
         4. 他社の注文は引き続き dry-run（ログ `[MODE] dry-run ...`）であることも確認
         5. 異常時は即 `QBO_MODE=dry-run` に戻す（§7 ロールバック）
-- [ ] E-4. 問題なければ `PRODUCTION_CUSTOMER_IDS` に **Group A → Group B/C/D → Individual** と順次追加。最後に `ALL` で全顧客本番化。
+- [~] E-4. `PRODUCTION_CUSTOMER_IDS` に順次追加して拡大中：
+        - ✅ 2026-05-22 **Group A（12社）＋Group B（6社）＝18社を本番化**。値=`060,008,021,024,084,093,051,062,022,068,094,061,064,025,013,014,002,003`、`QBO_MODE=production`。Render設定・検証済。
+        - [ ] 実注文の `[MODE] PRODUCTION` ログ・QBO金額を観察してから次へ
+        - [ ] Group C（001/019/016/028）/ Group D（035/045/070/088/033）を追加
+        - [ ] Individual（011/080/018/054/053/050/083/006/048）を追加
+        - [ ] 最後に `PRODUCTION_CUSTOMER_IDS=ALL` で全顧客本番化
 - [ ] E-5. 1〜2請求サイクル安定稼働を確認 → **Choco 解約**
 
 ---
