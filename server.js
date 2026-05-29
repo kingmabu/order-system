@@ -193,6 +193,23 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     setTimeout(() => imageStore.delete(orderKey), 30 * 60 * 1000);
     parsed.orderKey = orderKey;
 
+    // Pending タブへ解析記録を1行追記（失敗しても解析本体は止めない）
+    try {
+      const pendingAuth = new google.auth.GoogleAuth({
+        credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+        scopes: ['https://www.googleapis.com/auth/spreadsheets']
+      });
+      const pendingSheets = google.sheets({ version: 'v4', auth: pendingAuth });
+      await pendingSheets.spreadsheets.values.append({
+        spreadsheetId: process.env.GOOGLE_SHEET_ID,
+        range: 'Pending!A:F',
+        valueInputOption: 'USER_ENTERED',
+        resource: { values: [[orderKey, new Date().toISOString(), parsed.customer_name || '', parsed.customer_id || '', 'pending', '']] }
+      });
+    } catch (pendingErr) {
+      console.error('Pending append error:', pendingErr.message);
+    }
+
     res.json({ success: true, data: parsed });
   } catch (err) {
   console.error('Analyze error:', err.message);
@@ -243,6 +260,29 @@ app.post('/api/save-to-sheets', async (req, res) => {
           resource: { values: cidValues }
         });
       }
+    }
+
+    // Pending タブの該当行（OrderKey 一致）の Status を done に更新（失敗しても確定送信本体は止めない）
+    try {
+      if (data.orderKey) {
+        const pendingRes = await sheets.spreadsheets.values.get({
+          spreadsheetId: process.env.GOOGLE_SHEET_ID,
+          range: 'Pending!A:F'
+        });
+        const pendingRows = pendingRes.data.values || [];
+        const rowIndex = pendingRows.findIndex(r => r[0] && r[0].toString() === data.orderKey.toString());
+        if (rowIndex !== -1) {
+          const targetRow = rowIndex + 1; // 1始まりの行番号
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: process.env.GOOGLE_SHEET_ID,
+            range: `Pending!E${targetRow}`,
+            valueInputOption: 'RAW',
+            resource: { values: [['done']] }
+          });
+        }
+      }
+    } catch (pendingErr) {
+      console.error('Pending status update error:', pendingErr.message);
     }
 
     const noteItems = data.items.filter(item => item.note && item.note.trim() !== '');
