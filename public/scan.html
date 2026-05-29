@@ -209,6 +209,7 @@ async function analyze() {
   document.getElementById('analyzeBtn').disabled = true;
   const formData = new FormData();
   formData.append('image', selectedFile);
+  if (cid) formData.append('cid', cid);
   try {
     const res = await fetch('/api/analyze', { method: 'POST', body: formData });
     const json = await res.json();

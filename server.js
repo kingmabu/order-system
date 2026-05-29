@@ -83,28 +83,36 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer,
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.get('/scan', (req, res) => res.sendFile(path.join(__dirname, 'public', 'scan.html')));
 
+// Client list の A列で cid を照合し、店名(B列)・qboSystemId(D列)・電話を返す共通関数（見つからなければ null）
+async function lookupCustomerByCid(cid) {
+  if (!cid) return null;
+  const auth = new google.auth.GoogleAuth({
+    credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+  });
+  const sheets = google.sheets({ version: 'v4', auth });
+  const result = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.CLIENTS_SHEET_ID,
+    range: 'Client list!A:Q'
+  });
+  const rows = result.data.values || [];
+  const row = rows.find(r => r[0] && r[0].toString().trim() === cid.toString().trim());
+  if (!row) return null;
+  const managerPhone = row[13] || '';
+  const ownerPhone = row[10] || '';
+  const rep1Phone = row[16] || '';
+  const phone = managerPhone || ownerPhone || rep1Phone || '';
+  const customerId = String(row[0] || '').trim().padStart(3, '0');
+  return { customerId, customerName: row[1] || '', qboSystemId: row[3] || '', phone };
+}
+
 app.get('/api/customer', async (req, res) => {
   try {
     const { cid } = req.query;
     if (!cid) return res.status(400).json({ error: 'Customer ID is required' });
-    const auth = new google.auth.GoogleAuth({
-      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-    const result = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.CLIENTS_SHEET_ID,
-      range: 'Client list!A:Q'
-    });
-    const rows = result.data.values || [];
-    const row = rows.find(r => r[0] && r[0].toString().trim() === cid.toString().trim());
-    if (!row) return res.status(404).json({ error: `Customer ID ${cid} not found` });
-    const managerPhone = row[13] || '';
-    const ownerPhone = row[10] || '';
-    const rep1Phone = row[16] || '';
-    const phone = managerPhone || ownerPhone || rep1Phone || '';
-    const customerId = String(row[0] || '').trim().padStart(3, '0');
-    res.json({ success: true, customerId: customerId, customerName: row[1] || '', qboSystemId: row[3] || '', phone });
+    const info = await lookupCustomerByCid(cid);
+    if (!info) return res.status(404).json({ error: `Customer ID ${cid} not found` });
+    res.json({ success: true, customerId: info.customerId, customerName: info.customerName, qboSystemId: info.qboSystemId, phone: info.phone });
   } catch (err) {
     console.error('Customer lookup error:', err.message);
     res.status(500).json({ error: 'Customer lookup failed: ' + err.message });
@@ -193,6 +201,19 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     setTimeout(() => imageStore.delete(orderKey), 30 * 60 * 1000);
     parsed.orderKey = orderKey;
 
+    // cid があれば Client list から正式な店名・顧客IDを取得（失敗しても解析本体は止めない）
+    const cid = (req.body && req.body.cid) ? req.body.cid : '';
+    let customerInfo = null;
+    if (cid) {
+      try {
+        customerInfo = await lookupCustomerByCid(cid);
+      } catch (cidErr) {
+        console.error('Analyze cid lookup error:', cidErr.message);
+      }
+    }
+    const pendingCustomerName = (customerInfo && customerInfo.customerName) ? customerInfo.customerName : (parsed.customer_name || '');
+    const pendingCid = (customerInfo && customerInfo.customerId) ? customerInfo.customerId : '';
+
     // Pending タブへ解析記録を1行追記（失敗しても解析本体は止めない）
     try {
       const pendingAuth = new google.auth.GoogleAuth({
@@ -204,7 +225,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
         spreadsheetId: process.env.GOOGLE_SHEET_ID,
         range: 'Pending!A:F',
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [[orderKey, new Date().toISOString(), parsed.customer_name || '', parsed.customer_id || '', 'pending', '']] }
+        resource: { values: [[orderKey, new Date().toISOString(), pendingCustomerName, pendingCid, 'pending', '']] }
       });
     } catch (pendingErr) {
       console.error('Pending append error:', pendingErr.message);
