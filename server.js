@@ -224,8 +224,8 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
       await pendingSheets.spreadsheets.values.append({
         spreadsheetId: process.env.GOOGLE_SHEET_ID,
         range: 'Pending!A:F',
-        valueInputOption: 'USER_ENTERED',
-        resource: { values: [[orderKey, new Date().toISOString(), pendingCustomerName, pendingCid, 'pending', '']] }
+        valueInputOption: 'RAW', // ← 変更: USER_ENTERED だと Cid "064" が数値64に変換されるため RAW で全列を文字列のまま記録
+        resource: { values: [[orderKey, new Date().toISOString(), pendingCustomerName, String(pendingCid || ''), 'pending', '']] }
       });
     } catch (pendingErr) {
       console.error('Pending append error:', pendingErr.message);
