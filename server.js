@@ -221,11 +221,17 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
         scopes: ['https://www.googleapis.com/auth/spreadsheets']
       });
       const pendingSheets = google.sheets({ version: 'v4', auth: pendingAuth });
+      // ← 変更: 注文内容を "SKUxN, ..." 形式に要約（数量1以上の商品のみ。対象が無ければ空文字）
+      const itemsSummary = (parsed.items || [])
+        .filter(item => item && item.sku && Number(item.quantity) > 0)
+        .map(item => `${item.sku}x${Number(item.quantity)}`)
+        .join(', ');
       await pendingSheets.spreadsheets.values.append({
         spreadsheetId: process.env.GOOGLE_SHEET_ID,
-        range: 'Pending!A:F',
-        valueInputOption: 'RAW', // ← 変更: USER_ENTERED だと Cid "064" が数値64に変換されるため RAW で全列を文字列のまま記録
-        resource: { values: [[orderKey, new Date().toISOString(), pendingCustomerName, String(pendingCid || ''), 'pending', '']] }
+        range: 'Pending!A:H', // ← 変更: H列(注文内容)まで拡張
+        valueInputOption: 'RAW', // RAW を維持（Cid のゼロ落ち防止）
+        // A:OrderKey B:AnalyzedAt(UTC) C:CustomerName D:Cid E:Status F:AlertedAt G:AnalyzedAt_CA(Apps Script側で後埋め) H:注文内容
+        resource: { values: [[orderKey, new Date().toISOString(), pendingCustomerName, String(pendingCid || ''), 'pending', '', '', itemsSummary]] }
       });
     } catch (pendingErr) {
       console.error('Pending append error:', pendingErr.message);
@@ -288,7 +294,7 @@ app.post('/api/save-to-sheets', async (req, res) => {
       if (data.orderKey) {
         const pendingRes = await sheets.spreadsheets.values.get({
           spreadsheetId: process.env.GOOGLE_SHEET_ID,
-          range: 'Pending!A:F'
+          range: 'Pending!A:H' // ← 変更: H列まで拡張（照合はA列のみ使用、done更新はE列のまま）
         });
         const pendingRows = pendingRes.data.values || [];
         const rowIndex = pendingRows.findIndex(r => r[0] && r[0].toString() === data.orderKey.toString());
