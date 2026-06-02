@@ -5,13 +5,11 @@
  * Customer ID + SKU + 商品データ + Custom Prices + Client list を入力に、
  * インボイス単価を決定する純粋関数群。
  *
- * 価格ルール（QBO本番Pricing Rulesと一致させる）: // ← 変更（5分類対応）
- *   - Standard       → Item List ベース価格そのまま
- *   - Group A (12社) → ベース価格 × 1.020（+2.00%）
- *   - Group B (6社)  → Custom Prices の "GROUP_B" 共有設定を使用 / 未登録ならStandardフォールバック
- *   - Group C (4社)  → Custom Prices の "GROUP_C" 共有設定を使用 / 未登録ならStandardフォールバック
- *   - Group D (5社)  → Custom Prices の "GROUP_D" 共有設定を使用 / 未登録ならStandardフォールバック // ← 変更（Ramen Joint-Aikan）
- *   - Individual (9社) → Custom Prices の Customer ID 検索 / 未登録ならStandardフォールバック
+ * 価格ルール（QBO本番Pricing Rulesと一致させる）: // ← 変更（任意の Group X に汎用対応）
+ *   - Standard         → Item List ベース価格そのまま
+ *   - Group A          → ベース価格 × 1.020（+2.00%）※マークアップ方式
+ *   - Group B/C/D/E/F… → Custom Prices の "GROUP_X" 共有設定を使用 / 未登録ならStandardフォールバック // ← 変更（汎用化）
+ *   - Individual       → Custom Prices の Customer ID 検索 / 未登録ならStandardフォールバック
  */
 
 const { normalizeId } = require('./sheets-client');
@@ -19,10 +17,11 @@ const { normalizeId } = require('./sheets-client');
 const GROUP_A_MARKUP = 0.020; // +2.00%（QBO本番 Pricing Rules: Jinya Group = Fixed 2.00%）
 const GROUP_A_ROUND_TO = 0.05; // ← 変更: QBO Price Rule(Jinya Group)の Rounding=.05（次の$0.05へ切り上げ）と一致
 
-// Group B / Group C / Group D は Custom Prices シートで疑似Customer IDを使って共有価格を持つ // ← 変更
-const GROUP_B_LOOKUP_KEY = 'GROUP_B'; // ← 変更
-const GROUP_C_LOOKUP_KEY = 'GROUP_C'; // ← 変更
-const GROUP_D_LOOKUP_KEY = 'GROUP_D'; // ← 変更（Ramen Joint-Aikan 5社共通）
+// Group B/C/D/E… は Custom Prices シートで疑似Customer ID 'GROUP_X' を使って共有価格を持つ。 // ← 変更
+// 検索キーは getCustomLookupKey で "Group X" から汎用生成するため、以下の定数は後方互換・参照用のみ。 // ← 変更
+const GROUP_B_LOOKUP_KEY = 'GROUP_B';
+const GROUP_C_LOOKUP_KEY = 'GROUP_C';
+const GROUP_D_LOOKUP_KEY = 'GROUP_D';
 
 /**
  * 価格を小数点以下2桁に丸める
@@ -42,18 +41,25 @@ function roundUpTo(price, increment) {
 }
 
 /**
- * priceGroup から Custom Prices シートの lookup key を決定 // ← 変更（共通化）
- *  - Group B    → 'GROUP_B'
- *  - Group C    → 'GROUP_C'
- *  - Group D    → 'GROUP_D' // ← 変更
- *  - Individual → 顧客自身のCustomer ID
- *  - それ以外    → null（Custom Prices は引かない）
+ * priceGroup から Custom Prices シートの lookup key を決定 // ← 変更（汎用化: 任意の Group X 対応）
+ *  - Group B/C/D/E/F…（A以外の英字1文字グループ） → 'GROUP_X'（"Group X" → "GROUP_" + 大文字X）
+ *  - Individual                                    → 顧客自身のCustomer ID
+ *  - Group A                                       → null（マークアップ方式。Custom Prices は引かない）
+ *  - Standard / 空 / その他                         → null（Custom Prices は引かない）
+ *
+ * ※ 旧実装は Group B/C/D だけをハードコード判定していたため Group E 以降が Standard に落ちていた。
+ *   ここを汎用判定に置き換えたので、今後グループが増えてもコード変更は不要。
  */
 function getCustomLookupKey(priceGroup, normalizedCustomerId) {
-  if (priceGroup === 'Group B') return GROUP_B_LOOKUP_KEY;
-  if (priceGroup === 'Group C') return GROUP_C_LOOKUP_KEY;
-  if (priceGroup === 'Group D') return GROUP_D_LOOKUP_KEY; // ← 変更
-  if (priceGroup === 'Individual') return normalizedCustomerId;
+  const group = String(priceGroup || '').trim();
+  if (group === 'Individual') return normalizedCustomerId;
+  // "Group X"（X = B,C,D,E,… の英字1文字）→ "GROUP_X"。Group A はマークアップ方式なので除外。
+  const m = group.match(/^Group\s+([A-Za-z])$/);
+  if (m) {
+    const letter = m[1].toUpperCase();
+    if (letter === 'A') return null; // Group A は Custom Prices ではなくマークアップ
+    return 'GROUP_' + letter; // ← 変更（汎用化）
+  }
   return null;
 }
 

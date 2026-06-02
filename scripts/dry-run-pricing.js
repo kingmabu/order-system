@@ -2,8 +2,8 @@
  * scripts/dry-run-pricing.js - Custom Prices System dry-run 価格検証
  *
  * 開発用スプレッドシート（Custom Prices / Client list / Item List）を読み込み、
- * 各分類（Standard / Group A / Group B / Group C / Individual）の代表顧客で
- * determinePrice の結果を表示する。QBOには一切送信しない（読み取りのみ）。
+ * 実データに存在する全分類（Standard / Group A / Group B / C / D / E… / Individual）の // ← 変更（汎用化）
+ * 代表顧客で determinePrice の結果を表示する。QBOには一切送信しない（読み取りのみ）。
  *
  * 実行:
  *   node -r dotenv/config scripts/dry-run-pricing.js dotenv_config_path=.env.development
@@ -49,13 +49,13 @@ async function main() {
   const boxItem = items.find(i => i.isUnit && i.basePrice > 0);
 
   // Custom Price が登録されている (customerId, sku) のサンプルを拾う
-  // 疑似グループ(GROUP_B/C/D)を優先的に1件ずつ + Individual 2件
+  // 疑似グループ(GROUP_X すべて。B/C/D/E…)を1件ずつ + Individual(数値ID) 2件 // ← 変更（汎用化）
+  const isPseudoGroup = id => /^GROUP_[A-Za-z]$/.test(String(id));
   const pick = key => customPrices.find(cp => cp.customerId === key);
+  const pseudoKeys = [...new Set(customPrices.map(cp => cp.customerId).filter(isPseudoGroup))].sort();
   const cpSamples = [
-    pick('GROUP_B'),
-    pick('GROUP_C'),
-    pick('GROUP_D'),
-    ...customPrices.filter(cp => !['GROUP_B', 'GROUP_C', 'GROUP_D'].includes(cp.customerId)).slice(0, 2),
+    ...pseudoKeys.map(k => pick(k)),
+    ...customPrices.filter(cp => !isPseudoGroup(cp.customerId)).slice(0, 2),
   ].filter(Boolean);
 
   console.log('--- 代表SKU ---');
@@ -66,7 +66,9 @@ async function main() {
   const testSkus = [weightItem, boxItem].filter(Boolean).map(i => i.sku);
 
   console.log('--- 分類別 価格決定 ---');
-  for (const group of ['Standard', 'Group A', 'Group B', 'Group C', 'Group D', 'Individual']) {
+  // 実データに存在する分類をすべて列挙（Group E 以降も自動で含まれる） // ← 変更（汎用化）
+  const groupOrder = Object.keys(byGroup).sort();
+  for (const group of groupOrder) {
     const client = byGroup[group];
     if (!client) {
       console.log(`[${group}] 代表顧客なし（このグループの顧客が見つからない）`);
@@ -81,14 +83,15 @@ async function main() {
   }
   console.log('');
 
-  console.log('--- Custom Price 登録分の実値検証（先頭5件）---');
+  console.log('--- Custom Price 登録分の実値検証 ---');
   for (const cp of cpSamples) {
-    // この customerId が Individual / GROUP_C などどれでもそのまま検証
-    // 検索元の顧客を特定（GROUP_B/C は擬似ID）
+    // この customerId が Individual / GROUP_X などどれでもそのまま検証
+    // 疑似ID(GROUP_X)なら、その分類(Group X)に属する実顧客を1社見つけて検証 // ← 変更（汎用化）
     let testCustomerId = cp.customerId;
-    const pseudoToGroup = { GROUP_B: 'Group B', GROUP_C: 'Group C', GROUP_D: 'Group D' };
-    if (pseudoToGroup[cp.customerId]) {
-      const m = clients.find(c => c.priceGroup === pseudoToGroup[cp.customerId]);
+    const pg = String(cp.customerId).match(/^GROUP_([A-Za-z])$/);
+    if (pg) {
+      const groupName = 'Group ' + pg[1].toUpperCase();
+      const m = clients.find(c => c.priceGroup === groupName);
       testCustomerId = m ? m.customerId : null;
     }
     if (!testCustomerId) { console.log(`   ${cp.customerId} ${cp.sku}: 対応顧客なし（スキップ）`); continue; }
