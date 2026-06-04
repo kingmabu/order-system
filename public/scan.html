@@ -21,12 +21,6 @@
   .date-btn .dow { font-size: 10px; font-weight: 600; opacity: 0.7; display: block; }
   .date-btn .day { font-size: 16px; font-weight: 700; display: block; line-height: 1.2; }
   .date-btn .mon { font-size: 10px; opacity: 0.7; display: block; }
-  .upload-zone { border: 2px dashed #c8e6c9; border-radius: 12px; padding: 32px 20px; text-align: center; cursor: pointer; background: #f9fffe; transition: all 0.2s; }
-  .upload-zone:hover { border-color: #1D9E75; background: #e8f5e9; }
-  .upload-zone .icon { width: 52px; height: 52px; background: #e8f5e9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
-  .upload-zone .icon svg { width: 26px; height: 26px; stroke: #1D9E75; fill: none; stroke-width: 1.5; }
-  .upload-zone h2 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-  .upload-zone p { font-size: 13px; color: #888; }
   input[type=file] { display: none; }
   .preview { display: none; margin-top: 12px; }
   .preview img { width: 100%; border-radius: 8px; max-height: 220px; object-fit: cover; }
@@ -73,6 +67,44 @@
   .error-screen { display: none; text-align: center; padding: 40px 20px; }
   .error-screen h2 { font-size: 20px; font-weight: 700; color: #c62828; margin-bottom: 8px; }
   .error-screen p { font-size: 14px; color: #666; }
+  /* ← 変更: カメラ撮影ガイド枠 */
+  .photo-actions { display: flex; flex-direction: column; gap: 10px; }
+  .btn-camera { background: #1D9E75; color: white; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-camera svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  .or-divider { text-align: center; font-size: 12px; color: #aaa; letter-spacing: 1px; }
+  .btn-library { background: #f0f0f0; color: #555; }
+  .camera-view { display: none; position: fixed; inset: 0; z-index: 1000; background: #000; }
+  .camera-view.active { display: block; }
+  .camera-view video { width: 100%; height: 100%; object-fit: cover; }
+  .camera-overlay { position: absolute; inset: 0; pointer-events: none; }
+  .frame-guide { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(86vw, 56vh); aspect-ratio: 85 / 110; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); border-radius: 6px; overflow: hidden; }
+  .frame-guide .corner { position: absolute; width: 26px; height: 26px; border: 3px solid #1D9E75; z-index: 2; }
+  .frame-guide .corner.tl { top: 0; left: 0; border-right: none; border-bottom: none; border-top-left-radius: 6px; }
+  .frame-guide .corner.tr { top: 0; right: 0; border-left: none; border-bottom: none; border-top-right-radius: 6px; }
+  /* テーブルガイド: 上=実線 → 中=点線 → 後半フェードで消失 */
+  .guide-table { position: absolute; inset: 0; color: #fff; font-family: inherit;
+    border-top: 2px solid #fff; border-left: 1.5px solid rgba(255,255,255,0.9); border-right: 1.5px solid rgba(255,255,255,0.9);
+    filter: drop-shadow(0 0 1.2px rgba(0,0,0,0.85));
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 42%, rgba(0,0,0,0.55) 68%, rgba(0,0,0,0) 92%);
+            mask-image: linear-gradient(to bottom, #000 0%, #000 42%, rgba(0,0,0,0.55) 68%, rgba(0,0,0,0) 92%); }
+  .guide-qty { position: absolute; left: 60%; width: 15%; top: 0; bottom: 0; background: rgba(29,158,117,0.28); border-left: 2px solid rgba(29,158,117,0.95); border-right: 2px solid rgba(29,158,117,0.95); }
+  .guide-col { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1.5px solid rgba(255,255,255,0.9); }
+  .guide-head { position: absolute; top: 0; left: 0; right: 0; height: 26px; display: flex; align-items: center; border-bottom: 2px solid #fff; background: rgba(0,0,0,0.34); }
+  .guide-head span { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
+  .guide-rows { position: absolute; top: 26px; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; }
+  .guide-rows .gr { flex: 1; }
+  .guide-rows .gr.s { border-bottom: 1.5px solid rgba(255,255,255,0.9); }
+  .guide-rows .gr.d { border-bottom: 1.5px dashed rgba(255,255,255,0.7); }
+  .guide-rows .gr.d2 { border-bottom: 1.5px dashed rgba(255,255,255,0.5); }
+  .camera-hint { position: absolute; top: 72px; left: 0; right: 0; text-align: center; color: #fff; font-size: 14px; font-weight: 500; padding: 0 24px; text-shadow: 0 1px 4px rgba(0,0,0,0.85); }
+  .cam-close { position: absolute; top: 18px; left: 16px; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,0.45); color: #fff; border: none; font-size: 22px; line-height: 1; cursor: pointer; z-index: 2; }
+  .camera-controls { position: absolute; left: 0; right: 0; bottom: 0; height: 140px; display: flex; align-items: center; justify-content: center; }
+  .cam-shutter { width: 72px; height: 72px; border-radius: 50%; background: #fff; border: 4px solid rgba(255,255,255,0.55); box-shadow: 0 0 0 4px rgba(0,0,0,0.25); cursor: pointer; }
+  .cam-shutter:active { transform: scale(0.92); }
+  .cam-error { display: none; position: absolute; inset: 0; z-index: 3; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 28px; text-align: center; background: rgba(0,0,0,0.82); color: #fff; }
+  .cam-error.active { display: flex; }
+  .cam-error p { font-size: 15px; line-height: 1.5; }
+  .cam-error .btn { max-width: 280px; }
 </style>
 </head>
 <body>
@@ -91,17 +123,19 @@
       <div class="delivery-grid" id="dateGrid"></div>
     </div>
     <div class="card">
-      <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
-        <div class="icon">
+      <h2>2. Take Photo of Order Sheet</h2>
+      <div class="photo-actions" id="photoActions">
+        <button class="btn btn-camera" onclick="openCamera()">
           <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        </div>
-        <h2>2. Take / Select Photo</h2>
-        <p>Make sure the entire order sheet is visible</p>
-        <div class="preview" id="preview">
-          <img id="previewImg" alt="preview"/>
-        </div>
+          Open Camera
+        </button>
+        <div class="or-divider">— or —</div>
+        <button class="btn btn-library" onclick="document.getElementById('fileInput').click()">Choose from Library</button>
       </div>
       <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
+      <div class="preview" id="preview">
+        <img id="previewImg" alt="preview"/>
+      </div>
       <div class="status" id="status">
         <div class="spinner" id="spinner"></div>
         <span id="statusText"></span>
@@ -133,10 +167,49 @@
     <button class="btn btn-secondary" style="margin-top:24px" onclick="location.reload()">Submit Another Order</button>
   </div>
 </div>
+<!-- ← 変更: カメラ撮影ガイド枠オーバーレイ -->
+<div class="camera-view" id="cameraView">
+  <video id="cameraVideo" playsinline muted autoplay></video>
+  <div class="camera-overlay">
+    <div class="frame-guide">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <div class="guide-table">
+        <div class="guide-qty"></div>
+        <div class="guide-col" style="left:10%"></div>
+        <div class="guide-col" style="left:50%"></div>
+        <div class="guide-col" style="left:60%"></div>
+        <div class="guide-col" style="left:75%"></div>
+        <div class="guide-head">
+          <span style="flex:10">SKU</span>
+          <span style="flex:40">ITEM NAME</span>
+          <span style="flex:10">WT</span>
+          <span style="flex:15">QTY</span>
+          <span style="flex:25">NOTE</span>
+        </div>
+        <div class="guide-rows">
+          <span class="gr s"></span><span class="gr s"></span><span class="gr s"></span>
+          <span class="gr d"></span><span class="gr d"></span><span class="gr d"></span>
+          <span class="gr d2"></span><span class="gr d2"></span><span class="gr d2"></span>
+        </div>
+      </div>
+    </div>
+    <div class="camera-hint">Line up the top of your order sheet with the header</div>
+  </div>
+  <button class="cam-close" onclick="closeCamera()" aria-label="Close">&times;</button>
+  <div class="camera-controls">
+    <button class="cam-shutter" onclick="capturePhoto()" aria-label="Capture"></button>
+  </div>
+  <div class="cam-error" id="camError">
+    <p id="camErrorText"></p>
+    <button class="btn btn-secondary" onclick="closeCamera(); document.getElementById('fileInput').click();">Choose from Library instead</button>
+    <button class="btn btn-secondary" onclick="closeCamera()">Close</button>
+  </div>
+</div>
 <script>
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 let selectedFile = null, extractedData = null, selectedDate = null, customerInfo = null, isSubmitting = false;
+let cameraStream = null; // ← 変更: カメラ撮影ガイド枠用
 const urlParams = new URLSearchParams(window.location.search);
 const cid = urlParams.get('cid');
 
@@ -201,6 +274,86 @@ function handleFile(e) {
     checkReady();
   };
   reader.readAsDataURL(selectedFile);
+}
+
+// ← 変更: カメラ撮影ガイド枠
+async function openCamera() {
+  const view = document.getElementById('cameraView');
+  const video = document.getElementById('cameraVideo');
+  document.getElementById('camError').classList.remove('active');
+  view.classList.add('active');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showCamError({ name: 'NotSupportedError' });
+    return;
+  }
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } },
+      audio: false
+    });
+    video.srcObject = cameraStream;
+    await video.play();
+  } catch (err) {
+    showCamError(err);
+  }
+}
+
+function showCamError(err) {
+  let msg = 'Could not access the camera. Please choose a photo from your library.';
+  if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+    msg = 'Camera access was blocked. Please allow camera permission in your browser, or choose a photo from your library.';
+  } else if (err && err.name === 'NotFoundError') {
+    msg = 'No camera was found on this device. Please choose a photo from your library.';
+  }
+  document.getElementById('camErrorText').textContent = msg;
+  document.getElementById('camError').classList.add('active');
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(function(t) { t.stop(); });
+    cameraStream = null;
+  }
+  document.getElementById('cameraVideo').srcObject = null;
+}
+
+function closeCamera() {
+  stopCamera();
+  document.getElementById('cameraView').classList.remove('active');
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cameraVideo');
+  if (!video.videoWidth) return;
+  const vRect = video.getBoundingClientRect();
+  const fRect = document.querySelector('.frame-guide').getBoundingClientRect();
+  if (!vRect.width || !vRect.height) return; // レイアウト未確定時は中断
+  // object-fit: cover の表示→ネイティブ座標マッピング（枠内だけ切り抜く）
+  const scale = Math.max(vRect.width / video.videoWidth, vRect.height / video.videoHeight);
+  const dispW = video.videoWidth * scale;
+  const dispH = video.videoHeight * scale;
+  const offsetX = vRect.left + (vRect.width - dispW) / 2;
+  const offsetY = vRect.top + (vRect.height - dispH) / 2;
+  let cropX = (fRect.left - offsetX) / scale;
+  let cropY = (fRect.top - offsetY) / scale;
+  let cropW = fRect.width / scale;
+  let cropH = fRect.height / scale;
+  cropX = Math.max(0, Math.min(cropX, video.videoWidth));
+  cropY = Math.max(0, Math.min(cropY, video.videoHeight));
+  cropW = Math.min(cropW, video.videoWidth - cropX);
+  cropH = Math.min(cropH, video.videoHeight - cropY);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(cropW);
+  canvas.height = Math.round(cropH);
+  canvas.getContext('2d').drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(function(blob) {
+    if (!blob) return;
+    selectedFile = new File([blob], 'order-sheet.jpg', { type: 'image/jpeg' });
+    document.getElementById('previewImg').src = URL.createObjectURL(blob);
+    document.getElementById('preview').style.display = 'block';
+    checkReady();
+    closeCamera();
+  }, 'image/jpeg', 0.92);
 }
 
 async function analyze() {
