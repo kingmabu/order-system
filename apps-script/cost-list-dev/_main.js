@@ -133,6 +133,7 @@ function onOpen() {
   if (typeof vcr_previewDryRun === 'function') {                                     // ← 追加
     ui.createMenu('💰 仕入コスト反映')                                               // ← 追加
       .addItem('変更案をプレビュー（書込まない・dry-run）', 'vcr_previewDryRun')      // ← 追加
+      .addItem('明細を自分宛メールに送る（dry-run）', 'vcr_emailDryRunPreview')       // ← 追加
       .addToUi();                                                                    // ← 追加
   }                                                                                  // ← 追加
 }
