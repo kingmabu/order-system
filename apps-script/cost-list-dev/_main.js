@@ -113,4 +113,26 @@ function onOpen() {
     cp.addItem('Cost Reference を更新', 'rebuildCostReference');    // ← 追加
     cp.addToUi();                                                  // ← 追加
   }                                                                // ← 追加
+
+  // ===== 📧 価格通知（price_notify.gs）===== // ← 追加
+  if (typeof pn_menu_setup === 'function') {                                        // ← 追加
+    ui.createMenu('📧 価格通知')                                                     // ← 追加
+      .addItem('① 初期設定（タブ・列を作成）', 'pn_menu_setup')                       // ← 追加
+      .addItem('② Manpukuを通知対象にする', 'pn_menu_enableManpuku')                 // ← 追加
+      .addSeparator()                                                               // ← 追加
+      .addItem('③ 基準価格をセット（送らない）', 'pn_menu_initSnapshot')              // ← 追加
+      .addSeparator()                                                               // ← 追加
+      .addItem('④ ベースライン：現在価格でプレビュー作成', 'pn_menu_baselinePreview') // ← 追加
+      .addItem('⑤ 変更チェック：プレビュー作成', 'pn_menu_changePreview')            // ← 追加
+      .addSeparator()                                                               // ← 追加
+      .addItem('⑥ プレビュー内容を送信実行', 'pn_menu_send')                         // ← 追加
+      .addToUi();                                                                   // ← 追加
+  }                                                                                 // ← 追加
+
+  // ===== 💰 仕入コスト反映（vendor_cost_reflect.js）===== // ← 追加
+  if (typeof vcr_previewDryRun === 'function') {                                     // ← 追加
+    ui.createMenu('💰 仕入コスト反映')                                               // ← 追加
+      .addItem('変更案をプレビュー（書込まない・dry-run）', 'vcr_previewDryRun')      // ← 追加
+      .addToUi();                                                                    // ← 追加
+  }                                                                                  // ← 追加
 }
