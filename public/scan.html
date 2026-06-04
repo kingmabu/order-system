@@ -125,11 +125,11 @@
     <div class="card">
       <h2>2. Take Photo of Order Sheet</h2>
       <div class="photo-actions" id="photoActions">
-        <button class="btn btn-camera" onclick="openCamera()">
+        <button class="btn btn-camera" id="cameraBtn" onclick="openCamera()"><!-- ← 変更: camtest=1のときだけ表示 -->
           <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
           Open Camera
         </button>
-        <div class="or-divider">— or —</div>
+        <div class="or-divider" id="orDivider">— or —</div><!-- ← 変更: camtest=1のときだけ表示 -->
         <button class="btn btn-library" onclick="document.getElementById('fileInput').click()">Choose from Library</button>
       </div>
       <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
@@ -212,8 +212,19 @@ let selectedFile = null, extractedData = null, selectedDate = null, customerInfo
 let cameraStream = null; // ← 変更: カメラ撮影ガイド枠用
 const urlParams = new URLSearchParams(window.location.search);
 const cid = urlParams.get('cid');
+const camTest = urlParams.get('camtest') === '1'; // ← 変更: カメラガイド枠はcamtest=1のときだけ有効
+
+// ← 変更: camtest=1以外ではカメラボタンと区切りを隠し、Choose from Libraryのみ使えるようにする（P-01以前の挙動）
+function applyCameraGate() {
+  if (camTest) return;
+  const camBtn = document.getElementById('cameraBtn');
+  const orDivider = document.getElementById('orDivider');
+  if (camBtn) camBtn.style.display = 'none';
+  if (orDivider) orDivider.style.display = 'none';
+}
 
 async function init() {
+  applyCameraGate(); // ← 変更
   if (!cid) {
     document.getElementById('customerTag').innerHTML = '<span class="no-customer">General Access</span>';
     buildDateGrid();
