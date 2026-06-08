@@ -12,6 +12,16 @@ const path = require('path');
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
+// ← 変更: QBOインボイス明細を Packing list と同じ並び（Box→Piece→Weight）にするための
+//   単位タイプ→ランク関数。Packing list 側（Code.gs updatePackingList の rankUnit）と完全一致させること。
+//   Box=0（先頭） / Piece・Bag・Can=1（次） / それ以外(Weight・量り売り・空欄)=2（最後）。
+function rankUnit(unitType) {
+  const t = (unitType || '').toString().toLowerCase();
+  if (t === 'box') return 0;
+  if (t === 'piece' || t === 'bag' || t === 'can') return 1;
+  return 2;
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -411,9 +421,20 @@ app.post('/api/create-invoice', async (req, res) => {
     }
 
     // ===== ⑤ Lineを構築（UnitPrice は計算済み finalPrice を必ず使用） =====
+    // ← 変更: QBO送信前に Packing list と同じ並び（Box→Piece→Weight）へ安定ソート。
+    //   単位タイプは p.item.unitType（Item List M列）。同ランク内は元の受注順を維持するため
+    //   元のindexをタイブレーカーにして確実に安定ソートする。
+    const sortedPricedItems = pricedItems
+      .map((p, idx) => ({ p, idx }))
+      .sort((a, b) => {
+        const r = rankUnit(a.p.item && a.p.item.unitType) - rankUnit(b.p.item && b.p.item.unitType);
+        return r !== 0 ? r : a.idx - b.idx; // 同ランクは元の順序を維持
+      })
+      .map(x => x.p);
+
     const lines = [];
     const skippedSkus = [];
-    for (const p of pricedItems) {
+    for (const p of sortedPricedItems) {
       if (p.source === 'error') { skippedSkus.push(p.sku); continue; }
       const qboItem = qboItemsBySku.get(p.sku);
       if (!qboItem) {
@@ -423,6 +444,7 @@ app.post('/api/create-invoice', async (req, res) => {
       }
       const desc = `${p.sku} - ${p.item.itemName}` + (p.source === 'custom' ? ' [Custom Price]' : '');
       lines.push({
+        LineNum: lines.length + 1, // ← 変更（並べ替え後の順で1から連番。QBO側の自動並べ替えを防ぐ）
         Amount: p.lineTotal,
         DetailType: 'SalesItemLineDetail',
         Description: qboItem.Description || desc,

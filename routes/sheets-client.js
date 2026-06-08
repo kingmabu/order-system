@@ -134,16 +134,16 @@ async function loadAllClients() {
 
 /**
  * Item List 全件読み取り
- * シート列: A=SKU, D=Item Name, I=✅ Unit?, J=Price ($/lb), K=Unit Price ($)
+ * シート列: A=SKU, D=Item Name, I=✅ Unit?, J=Price ($/lb), K=Unit Price ($), M=Unit Type
  * ヘッダー4行目、データは5行目から
- * @return {Array} [{ sku, itemName, isUnit, priceLb, priceUnit, basePrice }, ...]
+ * @return {Array} [{ sku, itemName, isUnit, priceLb, priceUnit, basePrice, unitType }, ...]
  */
 async function loadAllItems() {
   const sheetName = process.env.ITEM_LIST_SHEET || DEFAULT_ITEM_LIST_SHEET;
   const spreadsheetId = process.env.ITEM_LIST_ID;
   if (!spreadsheetId) throw new Error('ITEM_LIST_ID 環境変数が未設定');
 
-  const range = `${sheetName}!A${IL_HEADER_ROW + 1}:K`;
+  const range = `${sheetName}!A${IL_HEADER_ROW + 1}:M`; // ← 変更（K→M。M列=単位タイプを追加読み込み）
   const rows = await readRangeWithRetry(spreadsheetId, range);
   return rows
     .filter(r => r[0]) // SKU 必須
@@ -154,6 +154,7 @@ async function loadAllItems() {
       const isUnit = r[8] === true || r[8] === 'TRUE' || r[8] === 'true';
       const priceLb = parsePrice(r[9]);    // J列（$/lb）         // ← 変更
       const priceUnit = parsePrice(r[10]); // K列（"$105.75/Box" のような文字列も数値化） // ← 変更
+      const unitType = String(r[12] || '').trim(); // M列（Box/Piece/Bag/Can等）。Packing list並び順用 // ← 変更
       return {
         sku,
         itemName,
@@ -161,6 +162,7 @@ async function loadAllItems() {
         priceLb,
         priceUnit,
         basePrice: isUnit ? priceUnit : priceLb,
+        unitType, // ← 変更（QBOインボイス明細をBox→Piece→Weight順に並べるため）
       };
     });
 }
