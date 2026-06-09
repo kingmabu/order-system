@@ -17,23 +17,24 @@
 /////////////////////////// 設定 ///////////////////////////
 var VCR_CONFIG = {
   // ★既定は true（書込まない・安全）。本書込みするときだけ手動で false にする。
-  // 2026-06-04: DEVコピー(1NPCw)への本書込みテスト合格。安全のため既定の true に戻した。
-  DRY_RUN: true,
+  // 2026-06-04: 本番(1dC88) go-live のため false。書込みは「▶本書込み」押下＋確認ダイアログYESのときだけ実行。
+  DRY_RUN: false,
 
   // --- 読取元：CFP Operations（本番）。dry-run は読取専用 ---
   SRC_CFP_OPS_ID: '1m2wm3M0xeoCWE3a4U4e-xvBKMR3j2Wllts7OBjBtv6o',
   TAB_RECEIVING_LOG: 'Receiving Log',
 
   // --- 書込先：Cost list ---
-  // 書込先。本書込みテストは「開発コピー cost list [DEV]」に対して行う（本番1dC88は触らない・仕様§10-1）。
-  // ★本番運用に切替えるときだけ 1dC88enQnxjK8-GgxQhA6z4xiICUZ-ShFGnzcYySY73k に戻す。
-  DEST_COST_LIST_ID: '1NPCw-Bz0kokXEe2Tv2PcF9XkQsa1c5IqiGh3IIkWpV8', // ← DEVコピー(cost list [DEV])。本番ではない
+  // 書込先。2026-06-04 go-live: 本番(cost list 1dC88)。
+  // ★書込みは「▶本書込み」押下＋確認ダイアログ YES のときだけ実行（誤クリック防止）。
+  // ★DEVで再テストするときは 1NPCw-Bz0kokXEe2Tv2PcF9XkQsa1c5IqiGh3IIkWpV8 に戻す。
+  DEST_COST_LIST_ID: '1dC88enQnxjK8-GgxQhA6z4xiICUZ-ShFGnzcYySY73k', // ← 本番 cost list
   TAB_COST_HISTORY: 'Cost History',
 
   // --- アラート ---
   ALERT_TO: 'ordercfp@gmail.com',
   ALERT_TEST_TO: 'califoodpro@gmail.com',
-  ALERT_TEST_MODE: true,   // true の間は宛先を ALERT_TEST_TO に固定（安全）
+  ALERT_TEST_MODE: false,  // 2026-06-04 go-live: 本番モード。宛先=ALERT_TO(ordercfp)・件名 [DEV TEST] 無し
 
   // --- 判定パラメータ ---
   SWING_FLAG_PCT: 50,      // ±50%超で「要確認」マーク（消さない・仕様書 §7）
@@ -184,6 +185,7 @@ function vcr_reasonHist_(pending) {
 
 /** 可変部を含む理由文を、集計用の固定ラベルに正規化する。 */
 function vcr_reasonKey_(r) {
+  if (/古い請求書/.test(r))              return '古い請求書(値戻り防止)';
   if (/Match=/.test(r))                 return 'Match未照合など';
   if (/Qty=0|数量不明/.test(r))          return 'Qty=0/数量不明';
   if (/Bill ID 空欄/.test(r))            return 'QBO Bill ID 空欄';
@@ -219,12 +221,19 @@ function vcr_runReflect() {
     return;
   }
 
-  // ---- 二重の安全確認：本番IDには書かない ----
+  // ---- 書込み前の確認ダイアログ（誤クリック防止）----
   var PROD = '1dC88enQnxjK8-GgxQhA6z4xiICUZ-ShFGnzcYySY73k';
-  if (cfg.DEST_COST_LIST_ID === PROD) {
-    ui.alert('中止：書込先が本番です',
-      'DEST_COST_LIST_ID が本番(1dC88…)になっています。安全のため書き込みを中止しました。\n' +
-      '開発コピー(1NPCw…)に変更してから実行してください。', ui.ButtonSet.OK);
+  var isProd = (cfg.DEST_COST_LIST_ID === PROD);
+  var destLabel = isProd ? '本番（cost list）' : 'DEV（cost list [DEV]）';
+  var confirm = ui.alert(
+    (isProd ? '⚠️ 本番に書き込みます' : '書き込みの確認'),
+    rep.changes.length + ' 件を ' + destLabel + ' の F列・H列に書き込みます。\n' +
+    'Cost History に ' + rep.changes.length + ' 行追記し、アラートを1通送信します。\n' +
+    '（要確認・未反映 ' + (rep.hold ? rep.hold.length : 0) + ' 件／保留 ' + rep.pending.length + ' 件は書きません）\n\n' +
+    'よろしいですか？',
+    ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) {
+    ui.alert('中止しました', '何も書き込んでいません。', ui.ButtonSet.OK);
     return;
   }
 
@@ -250,8 +259,10 @@ function vcr_runReflect() {
     hist.getRange(hist.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
   }
 
-  // ---- 3) アラート送信 ----
-  vcr_sendAlert_(rep);
+  // ---- 3) アラート送信（1通）。失敗しても書込みは完了済みなので落とさない ----
+  var alertTo = '';
+  try { alertTo = vcr_sendAlert_(rep) || '(変動ゼロのため未送信)'; }
+  catch (e) { alertTo = 'メール送信エラー: ' + e; }
 
   // ---- 4) 完了ポップアップ（M不変の検証材料も表示）----
   var mLines = rep.changes.map(function (c) {
@@ -259,11 +270,12 @@ function vcr_runReflect() {
       (c.oldF === null ? '(空欄)' : vcr_money_(c.oldF)) + ' → ' + vcr_money_(c.newF) +
       ' ｜M(QB Price)=' + vcr_str_(c.curM) + '（書込み対象外＝不変）';
   }).join('\n');
-  ui.alert('✅ 本書込み完了（DEV）',
-    '書込先：cost list [DEV]（' + cfg.DEST_COST_LIST_ID + '）\n\n' +
+  ui.alert('✅ 本書込み完了（' + (isProd ? '本番' : 'DEV') + '）',
+    '書込先：' + destLabel + '（' + cfg.DEST_COST_LIST_ID + '）\n\n' +
     'F列・H列を更新：' + rep.changes.length + ' 行\n' +
     'Cost History 追記：' + rep.changes.length + ' 行\n' +
-    '要確認・未反映（書かず）：' + (rep.hold ? rep.hold.length : 0) + ' 件\n\n' +
+    '要確認・未反映（書かず）：' + (rep.hold ? rep.hold.length : 0) + ' 件\n' +
+    'アラート送信先：' + alertTo + '\n\n' +
     '※M(QB Price)・N・G・I〜L・Preferred・Item List・QBO は触っていません。\n\n' +
     mLines, ui.ButtonSet.OK);
 }
@@ -282,58 +294,61 @@ function vcr_ensureCostHistory_(dest) {
   return sh;
 }
 
-/** ベンダー（タブ）単位でアラートを送る。test mode は件名に [DEV TEST]・宛先は実行者本人。 */
+/** アラートを「1通」送る。ベンダー単位の見出しでまとめ、末尾に手動確認・保留サマリ（仕様§7）。
+ *  本番モード(ALERT_TEST_MODE=false)：宛先=ALERT_TO・件名プレフィックス無し。
+ *  テストモード：宛先=実行者本人・件名 [DEV TEST]。送信先メールを返す。変動ゼロなら null。 */
 function vcr_sendAlert_(rep) {
   var cfg = VCR_CONFIG;
   var changes = rep.changes, hold = rep.hold || [];
-  if (!changes.length && !hold.length) return;  // 変動ゼロなら送らない（仕様§7）
+  if (!changes.length && !hold.length) return null;  // 変動ゼロなら送らない（仕様§7）
 
   var testMode = !!cfg.ALERT_TEST_MODE;
   var to = testMode ? (Session.getActiveUser().getEmail() || cfg.ALERT_TEST_TO) : cfg.ALERT_TO;
   var pfx = testMode ? '[DEV TEST] ' : '';
 
-  // タブ単位にまとめる（1タブ＝1通）。spec §7：ベンダー単位で1通。
   var byTab = {};
   changes.forEach(function (c) { (byTab[c.tab] = byTab[c.tab] || { ch: [], hold: [] }).ch.push(c); });
   hold.forEach(function (c) { (byTab[c.tab] = byTab[c.tab] || { ch: [], hold: [] }).hold.push(c); });
 
+  var L = [];
+  L.push('仕入コスト変動の通知（F=仕入コストの自動反映。売値M列は人が判断）');
+  L.push('反映日: ' + vcr_today_() + '　反映: ' + changes.length + ' 件' +
+    (hold.length ? '／要確認・未反映: ' + hold.length + ' 件' : ''));
+  L.push('');
+
+  // ベンダー（タブ）単位の見出しで1通にまとめる（仕様§7：ベンダー単位・SKU乱発しない）
   Object.keys(byTab).forEach(function (tab) {
     var g = byTab[tab];
-    var L = [];
-    L.push('【' + (testMode ? 'DEVテスト・' : '') + '仕入コスト変動】' + tab);
-    L.push('');
+    L.push('■ ' + tab + '（反映 ' + g.ch.length + ' 件' + (g.hold.length ? '／要確認 ' + g.hold.length + ' 件' : '') + '）');
     g.ch.forEach(function (c) {
       var arrow = c.dir === 'up' ? '↑値上がり' : (c.dir === 'down' ? '↓値下がり' : '＊新規');
       var pctS = c.pct === null ? '' : ' ' + (c.pct >= 0 ? '+' : '') + c.pct.toFixed(1) + '%';
-      L.push(arrow + ' ' + c.sku + ' ' + c.name + ' : ' +
+      L.push('  ' + arrow + ' ' + c.sku + ' ' + c.name + ' : ' +
         (c.oldF === null ? '(空欄)' : vcr_money_(c.oldF)) + ' → ' + vcr_money_(c.newF) + pctS +
         '（25%推奨売価: ' + vcr_str_(c.curK) + '）');
     });
-    if (g.hold.length) {
-      L.push('');
-      L.push('⚠️ 要確認・未反映（±50%超／F列に書いていません）:');
-      g.hold.forEach(function (c) {
-        var pctS = c.pct === null ? '' : ' ' + (c.pct >= 0 ? '+' : '') + c.pct.toFixed(1) + '%';
-        L.push('  ⚠️ ' + c.sku + ' ' + c.name + ' : ' +
-          (c.oldF === null ? '(空欄)' : vcr_money_(c.oldF)) + ' → ' + vcr_money_(c.newF) + pctS +
-          '  ← 人が確認のうえ手動でF更新');
-      });
-    }
+    g.hold.forEach(function (c) {
+      var pctS = c.pct === null ? '' : ' ' + (c.pct >= 0 ? '+' : '') + c.pct.toFixed(1) + '%';
+      L.push('  ⚠️要確認・未反映 ' + c.sku + ' ' + c.name + ' : ' +
+        (c.oldF === null ? '(空欄)' : vcr_money_(c.oldF)) + ' → ' + vcr_money_(c.newF) + pctS +
+        '（±50%超・人が確認しF更新）');
+    });
     L.push('');
-    L.push('（売値M列は人が判断。本メールはF=仕入コストの変動通知です）');
-    MailApp.sendEmail(to, pfx + '[仕入コスト] ' + tab + ' ' + g.ch.length + '件の変動', L.join('\n'));
   });
 
-  // 末尾：手動確認＆保留サマリを1通（テスト時のみ実行者本人へ）
-  var S = [];
-  S.push('■ 手動確認（CS/EA・Sunrise／自動反映しない）: ' + rep.manual.length + ' 件');
+  // 末尾：手動確認＆保留サマリ（仕様§7：末尾に保留リスト）
+  L.push('── 手動確認（CS/EA・Sunrise／自動反映しない）: ' + rep.manual.length + ' 件');
   rep.manual.forEach(function (m) {
-    S.push('  ' + m.ourSku + ' ' + m.note + ' : Unit ' + vcr_money_(m.unit) + ' ｜' + m.vendor);
+    L.push('  ' + m.ourSku + ' ' + m.note + ' : Unit ' + vcr_money_(m.unit) + ' ｜' + m.vendor);
   });
-  S.push('');
-  S.push('■ 保留: ' + rep.pending.length + ' 件（理由別）');
-  vcr_reasonHist_(rep.pending).forEach(function (kv) { S.push('  ・' + kv[0] + '：' + kv[1] + ' 件'); });
-  MailApp.sendEmail(to, pfx + '[仕入コスト] 手動確認・保留サマリ', S.join('\n'));
+  L.push('');
+  L.push('── 保留: ' + rep.pending.length + ' 件（理由別）');
+  vcr_reasonHist_(rep.pending).forEach(function (kv) { L.push('  ・' + kv[0] + '：' + kv[1] + ' 件'); });
+
+  var subj = pfx + '[仕入コスト] ' + vcr_today_() + ' 反映' + changes.length + '件' +
+    (hold.length ? '・要確認' + hold.length + '件' : '');
+  MailApp.sendEmail(to, subj, L.join('\n'));
+  return to;
 }
 
 
@@ -461,6 +476,20 @@ function vcr_buildReport_() {
       ? info.values[idx][cfg.COST_LIST_K_COL - 1] : '';
     var curM = cfg.COST_LIST_M_COL <= info.values[idx].length
       ? info.values[idx][cfg.COST_LIST_M_COL - 1] : '';   // M=QB Price（検証用に読むだけ・書かない）
+
+    // ---- 古い請求書は自動保留（値戻り防止）----
+    // 採用予定の請求書(Invoice Date)が、現在のF更新日(H列)より「厳密に古い」なら書かない。
+    // H空欄／日付不明／同日 は従来どおり反映する。全ベンダー共通の恒久ルール。
+    var curH = cfg.COST_LIST_H_COL <= info.values[idx].length
+      ? info.values[idx][cfg.COST_LIST_H_COL - 1] : '';
+    var invT = vcr_time_(rec2.invDate), hT = vcr_time_(curH);
+    if (hT !== null && invT !== null && invT < hT) {
+      rec2.reason = '古い請求書（INV ' + vcr_dateStr_(rec2.invDate) +
+        ' < 現F更新 ' + vcr_dateStr_(curH) + '）';
+      pending.push(rec2);
+      continue;
+    }
+
     var newF = rec2.unit;
 
     var dir, pct = null, flag = false;
