@@ -344,7 +344,7 @@ app.post('/api/save-to-sheets', async (req, res) => {
 
 app.post('/api/create-invoice', async (req, res) => {
   try {
-    const { data, deliveryDate, accessToken, realmId } = req.body;
+    const { data, deliveryDate, accessToken, realmId, memo } = req.body; // ← 変更（memo を受け取る）
     const baseUrl = process.env.QBO_ENV === 'production'
       ? 'https://quickbooks.api.intuit.com'
       : 'https://sandbox-quickbooks.api.intuit.com';
@@ -454,6 +454,11 @@ app.post('/api/create-invoice', async (req, res) => {
 
     if (lines.length === 0) return res.status(400).json({ error: 'No matching SKUs found in QuickBooks.' });
 
+    // ★ 追加：Manual Order から memo（例 "Guest: 田中"）が来た場合のみ QBO の PrivateNote にセット。
+    //   PrivateNote は社内用メモで、顧客に渡す請求書の表面には印字されない。
+    //   memo が空 / 未指定なら従来どおり何もセットしない（通常顧客の挙動は変えない）。
+    const privateNote = (typeof memo === 'string') ? memo.trim() : '';
+
     // ===== ⑥ 価格ソース内訳：社内ログにのみ記録（QBOには載せない＝顧客への漏洩防止） ===== // ← 変更
     const priceBreakdown = pricedItems
       .filter(p => p.source !== 'error')
@@ -471,7 +476,8 @@ app.post('/api/create-invoice', async (req, res) => {
       console.log(JSON.stringify({
         CustomerRef: { value: customerId },
         TxnDate: deliveryDate,
-        Line: lines, // ← 変更（PrivateNoteは載せない。内訳は上の [Pricing] ログ参照）
+        Line: lines, // ← 変更（価格内訳の PrivateNote は載せない。内訳は上の [Pricing] ログ参照）
+        ...(privateNote ? { PrivateNote: privateNote } : {}), // ★ 追加：memo があれば PrivateNote をプレビュー表示
       }, null, 2));
       return res.json({
         success: true, dryRun: true,
@@ -505,13 +511,16 @@ app.post('/api/create-invoice', async (req, res) => {
     }
 
     // ===== ⑨ Invoice 作成 =====
+    const invoiceBody = {
+      CustomerRef: { value: customerId },
+      TxnDate: deliveryDate, // ← 変更（ShipDateは廃止しTxnDateのみ＝origin修正を採用）
+      Line: lines, // ← 変更（価格内訳の PrivateNote は廃止。内訳は [Pricing] ログ）
+    };
+    // ★ 追加：memo がある場合のみ PrivateNote をセット（社内メモ。顧客向け請求書には非表示）
+    if (privateNote) invoiceBody.PrivateNote = privateNote;
     const invoice = await axios.post(
       `${baseUrl}/v3/company/${realmId}/invoice`,
-      {
-        CustomerRef: { value: customerId },
-        TxnDate: deliveryDate, // ← 変更（ShipDateは廃止しTxnDateのみ＝origin修正を採用）
-        Line: lines, // ← 変更（PrivateNote廃止＝顧客ステートメントへの内訳漏洩防止。内訳は [Pricing] ログ）
-      },
+      invoiceBody,
       { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' } }
     );
 
