@@ -624,3 +624,95 @@ const vendorQuery = await axios.get(
     res.status(500).json({ error: 'Bill creation failed: ' + JSON.stringify(err.response?.data || err.message) });
   }
 });
+
+// ============================================================
+// AR(売掛金)エージェント用エンドポイント
+// 認証: 既存のApps Script→サーバー呼び出しと同じ仕組み（/api/create-bill と同様、
+//       追加の認証層なし。QBOトークンはサーバー側 getValidToken() で取得）
+// ============================================================
+
+// APIキー認証ミドルウェア（AR用エンドポイント専用。既存エンドポイントには適用しない）
+// リクエストヘッダー X-API-Key と環境変数 AR_API_KEY を照合。
+// AR_API_KEY 未設定、またはキー不一致なら 401 を返す。
+function requireArApiKey(req, res, next) {
+  const expected = (process.env.AR_API_KEY || '').trim();
+  const provided = (req.get('X-API-Key') || '').trim();
+  if (!expected || !provided || provided !== expected) {
+    return res.status(401).json({ error: 'Unauthorized: invalid or missing API key' });
+  }
+  next();
+}
+
+// QBOクエリをページネーション付きで全件取得する共通関数
+// （QBOのMAXRESULTS上限は1000。1000件超でも漏れなく取得する）
+async function qboQueryAll(baseUrl, realmId, accessToken, entity, whereClause) {
+  const pageSize = 1000;
+  let startPosition = 1;
+  const all = [];
+  while (true) {
+    const query = `SELECT * FROM ${entity}` +
+      (whereClause ? ` WHERE ${whereClause}` : '') +
+      ` ORDERBY Id STARTPOSITION ${startPosition} MAXRESULTS ${pageSize}`;
+    const resp = await axios.get(
+      `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(query)}`,
+      { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
+    );
+    const items = resp.data.QueryResponse?.[entity] || [];
+    all.push(...items);
+    if (items.length < pageSize) break;
+    startPosition += pageSize;
+  }
+  return all;
+}
+
+// GET /ar/aging … Balance > 0 のInvoiceを全件返す（エイジング集計用）
+app.get('/ar/aging', requireArApiKey, async (req, res) => {
+  try {
+    const token = await getValidToken();
+    if (!token) return res.status(401).json({ error: 'QBO not connected. Please visit /auth/connect' });
+    const { accessToken, realmId } = token;
+    const baseUrl = process.env.QBO_ENV === 'production'
+      ? 'https://quickbooks.api.intuit.com'
+      : 'https://sandbox-quickbooks.api.intuit.com';
+
+    const invoices = await qboQueryAll(baseUrl, realmId, accessToken, 'Invoice', `Balance > '0'`);
+    const result = invoices.map(inv => ({
+      customerId: inv.CustomerRef?.value || '',
+      customerName: inv.CustomerRef?.name || '',
+      invoiceNumber: inv.DocNumber || '',
+      txnDate: inv.TxnDate || '',
+      dueDate: inv.DueDate || '',
+      balance: Number(inv.Balance) || 0,
+      totalAmt: Number(inv.TotalAmt) || 0
+    }));
+    console.log(`[AR] /ar/aging -> ${result.length} open invoices`);
+    res.json(result);
+  } catch (err) {
+    console.error('AR aging error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'AR aging failed: ' + JSON.stringify(err.response?.data || err.message) });
+  }
+});
+
+// GET /ar/customer-emails … 全Customerの { customerId, displayName, email } を返す
+app.get('/ar/customer-emails', requireArApiKey, async (req, res) => {
+  try {
+    const token = await getValidToken();
+    if (!token) return res.status(401).json({ error: 'QBO not connected. Please visit /auth/connect' });
+    const { accessToken, realmId } = token;
+    const baseUrl = process.env.QBO_ENV === 'production'
+      ? 'https://quickbooks.api.intuit.com'
+      : 'https://sandbox-quickbooks.api.intuit.com';
+
+    const customers = await qboQueryAll(baseUrl, realmId, accessToken, 'Customer', '');
+    const result = customers.map(c => ({
+      customerId: c.Id || '',
+      displayName: c.DisplayName || '',
+      email: c.PrimaryEmailAddr?.Address || ''
+    }));
+    console.log(`[AR] /ar/customer-emails -> ${result.length} customers`);
+    res.json(result);
+  } catch (err) {
+    console.error('AR customer-emails error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'AR customer-emails failed: ' + JSON.stringify(err.response?.data || err.message) });
+  }
+});
