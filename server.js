@@ -8,6 +8,7 @@ const { loadAllDataSources, normalizeId } = require('./routes/sheets-client'); /
 const { determinePricesForOrder } = require('./routes/pricing'); // ← 変更
 const nodemailer = require('nodemailer');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -24,6 +25,14 @@ function rankUnit(unitType) {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// PWA: cid付きでmanifestを要求されたら、start_urlに顧客番号を引き継いで返す
+app.get('/manifest.json', (req, res) => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'manifest.json'), 'utf8'));
+  manifest.start_url = req.query.cid ? '/scan?cid=' + encodeURIComponent(req.query.cid) : '/scan';
+  res.json(manifest);
+});
+
 app.use(express.static('public'));
 app.use('/auth', QBOAuth);
 app.use('/api/flyer', require('./routes/flyerExport'));

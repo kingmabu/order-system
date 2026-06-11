@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Order Submission</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#060807">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CFP注文">
+<script>
+// QRコードの顧客番号(cid)をホーム画面アプリの起動URLに引き継ぐ
+(function() {
+  var cid = new URLSearchParams(location.search).get('cid');
+  if (cid) {
+    document.querySelector('link[rel="manifest"]').setAttribute('href', '/manifest.json?cid=' + encodeURIComponent(cid));
+  }
+})();
+</script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; min-height: 100vh; }
