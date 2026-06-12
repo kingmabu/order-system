@@ -114,17 +114,22 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer,
 
 // ← 変更(リスト注文): リスト注文の受付アラートメール。既存の sendNoteAlert は変更せず別関数で追加。
 //   件名・本文に「List Order(リスト注文)」と明記し、写真注文と区別できるようにする。
-async function sendListOrderAlert(customerName, deliveryDate, items, phone) {
+async function sendListOrderAlert(customerName, deliveryDate, items, phone, freeRequest) {
   const itemList = (items || [])
     .map(item => `• ${item.sku} - ${item.name} (Qty: ${item.quantity})`)
     .join('\n');
   const phoneLine = phone ? `\nPhone: ${phone}` : '';
   const now = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', dateStyle: 'medium', timeStyle: 'short' });
+  // ← 変更(ステップ2): 自由記入(リストにない商品)があれば本文の目立つ位置に表示。
+  //   QBOインボイスには自動追加されないため、このメールを見て手動対応する。
+  const requestLine = freeRequest
+    ? `\n\n★リクエスト (Items not on the list — NOT added to invoice):\n${freeRequest}`
+    : '';
   const mailOptions = {
     from: process.env.GMAIL_USER,
     to: process.env.GMAIL_USER,
-    subject: `📝 ${customerName} (List Order)`,
-    text: `Order Method: LIST ORDER (リスト注文)\nCustomer: ${customerName}${phoneLine}\nSubmitted: ${now} (PDT)\nDelivery Date: ${deliveryDate}\n\nItems:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`
+    subject: `📝 ${customerName} (List Order)${freeRequest ? ' ★リクエストあり' : ''}`,
+    text: `Order Method: LIST ORDER (リスト注文)\nCustomer: ${customerName}${phoneLine}\nSubmitted: ${now} (PDT)\nDelivery Date: ${deliveryDate}${requestLine}\n\nItems:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`
   };
   await transporter.sendMail(mailOptions);
   console.log('List order alert sent for:', customerName);
@@ -262,6 +267,67 @@ app.get('/api/itemlist', async (req, res) => {
   }
 });
 
+// ← 変更(ステップ2): GET /api/orderhistory?cid=XXX
+//   Order History(Sheet1)から該当顧客の直近の注文を新しい順に最大20行返す。
+//   パフォーマンス対策: まずC列(顧客ID)1列だけ取得して該当行番号を特定し、
+//   末尾の最大20行だけ batchGet で行単位取得する(シート全体A:Kは読まない)。
+//   返すのは注文日時・配達日・商品名・数量のみ(価格・インボイス番号は返さない)。
+app.get('/api/orderhistory', async (req, res) => {
+  try {
+    const { cid } = req.query;
+    if (!cid) return res.status(400).json({ error: 'Customer ID is required' });
+    const cid3 = String(cid).trim().padStart(3, '0');
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // ① C列(顧客ID)のみ取得し、該当行番号を特定(数値セルでもゼロ埋め3桁に正規化して照合)
+    const colRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: 'Sheet1!C:C',
+      majorDimension: 'COLUMNS'
+    });
+    const colVals = (colRes.data.values && colRes.data.values[0]) || [];
+    const rowNums = [];
+    for (let i = 1; i < colVals.length; i++) { // i=0 はヘッダー行
+      const v = String(colVals[i] || '').trim();
+      if (!v) continue;
+      const normalized = /^\d+$/.test(v) ? v.padStart(3, '0') : v;
+      if (normalized === cid3) rowNums.push(i + 1);
+    }
+    const recent = rowNums.slice(-20); // 直近(下にある行ほど新しい)最大20行
+    if (recent.length === 0) {
+      console.log(`[orderhistory] cid=${cid3}: no rows`);
+      return res.json({ success: true, orders: [] });
+    }
+
+    // ② 該当行だけを行単位で取得(A=注文日時 B=配達日 F=商品名 G=数量)
+    const batch = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      ranges: recent.map(r => `Sheet1!A${r}:G${r}`)
+    });
+    const orders = (batch.data.valueRanges || [])
+      .map(vr => {
+        const r = (vr.values && vr.values[0]) || [];
+        return {
+          orderDate: (r[0] || '').toString(),
+          deliveryDate: (r[1] || '').toString(),
+          name: (r[5] || '').toString(),
+          quantity: (r[6] || '').toString()
+        };
+      })
+      .filter(o => o.name)
+      .reverse(); // 新しい順
+    console.log(`[orderhistory] cid=${cid3}: ${orders.length} rows`);
+    res.json({ success: true, orders });
+  } catch (err) {
+    console.error('Order history error:', err.message);
+    res.status(500).json({ error: 'Failed to load order history: ' + err.message });
+  }
+});
+
 app.post('/api/analyze', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No image found' });
@@ -385,6 +451,10 @@ app.post('/api/save-to-sheets', async (req, res) => {
     // ← 変更(リスト注文): リスト注文判定フラグ。I列への書き込みはappend後に行番号指定で行う
     //   (appendをA:Iに広げると列ずれが発生したため、appendは従来のA:H 8列のまま=写真注文と完全同一)
     const isListOrder = data.orderMethod === 'LIST';
+    // ← 変更(ステップ2): 自由記入(リストにない商品)。リスト注文のみ。500文字に切り詰め(絵文字・改行はそのまま保持)
+    const freeRequest = (isListOrder && typeof data.freeRequest === 'string')
+      ? data.freeRequest.trim().slice(0, 500)
+      : '';
     const rows = data.items.map(item => [orderDate, deliveryDate, cidText, data.customer_name, item.sku, item.name, item.quantity, item.note || '']);
 
     // USER_ENTERED で追記（日付が正しく解釈される）
@@ -436,6 +506,27 @@ app.post('/api/save-to-sheets', async (req, res) => {
       }
     }
 
+    // ← 変更(ステップ2): 自由記入があれば注文の先頭行のK列に記録。
+    //   K列は下流のApps Script(Packing list / MorningAlert / ManualOrder)が参照しない未使用列。
+    //   appendはA:H 8列のまま変えず、I列フラグと同じ「行番号を特定してRAWで上書き」方式
+    if (freeRequest) {
+      try {
+        const updatedRange = appendRes.data.updates.updatedRange; // e.g. "Sheet1!A5:H6"
+        const match = updatedRange.match(/!.*?(\d+):.*?(\d+)$/);
+        if (match) {
+          const startRow = parseInt(match[1]);
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: process.env.GOOGLE_SHEET_ID,
+            range: `Sheet1!K${startRow}`,
+            valueInputOption: 'RAW',
+            resource: { values: [[freeRequest]] }
+          });
+        }
+      } catch (reqErr) {
+        console.error('Free request write error:', reqErr.message); // 記録失敗でも注文本体は止めない(メールには載る)
+      }
+    }
+
     // Pending タブの該当行（OrderKey 一致）の Status を done に更新（失敗しても確定送信本体は止めない）
     try {
       if (data.orderKey) {
@@ -474,7 +565,7 @@ app.post('/api/save-to-sheets', async (req, res) => {
 
     // ← 変更(リスト注文): リスト注文は毎回アラートメールを送信(受付通知)
     if (isListOrder) {
-      sendListOrderAlert(data.customer_name, deliveryDate, data.items, data.customerPhone)
+      sendListOrderAlert(data.customer_name, deliveryDate, data.items, data.customerPhone, freeRequest)
         .catch(err => console.error('List alert error:', err.message));
     }
 

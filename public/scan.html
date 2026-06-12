@@ -102,6 +102,26 @@
   .qty-stepper { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .step-btn { width: 36px; height: 36px; border-radius: 10px; border: 1.5px solid #1D9E75; background: white; color: #1D9E75; font-size: 20px; font-weight: 700; cursor: pointer; line-height: 1; }
   .step-btn:active { background: #e8f5e9; }
+  /* ← 変更(ステップ2): 自由記入欄・注文履歴・完了画面サマリー用スタイル */
+  .free-request label { font-size: 13px; font-weight: 600; color: #1a1a1a; display: block; margin: 16px 0 6px; }
+  .free-request textarea { width: 100%; border: 1.5px solid #e0e0e0; border-radius: 10px; padding: 10px; font-size: 14px; font-family: inherit; resize: vertical; min-height: 60px; }
+  .free-request textarea:focus { outline: none; border-color: #1D9E75; background: #f9fffe; }
+  .review-request { background: #fff8e1; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #856404; margin-top: 12px; white-space: pre-wrap; word-break: break-word; }
+  .history-link { display: block; width: 100%; background: none; border: none; color: #888; font-size: 13px; font-weight: 600; cursor: pointer; padding: 10px 0 0; text-align: center; text-decoration: underline; }
+  .history-link:hover { color: #1D9E75; }
+  .history-group { margin-bottom: 16px; }
+  .history-group .hg-date { font-size: 14px; font-weight: 700; color: #0F6E56; background: #e8f5e9; border-radius: 8px; padding: 6px 10px; margin-bottom: 4px; }
+  .history-group .hg-ordered { font-size: 11px; color: #888; margin: 0 0 4px 2px; }
+  .history-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 5px 2px; border-bottom: 1px solid #f5f5f5; }
+  .history-row .hr-qty { font-weight: 600; flex-shrink: 0; }
+  .history-note { font-size: 13px; color: #888; text-align: center; padding: 12px 0; }
+  .order-summary { margin: 20px auto 0; max-width: 360px; background: white; border-radius: 12px; padding: 16px; text-align: left; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .order-summary h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .order-summary .sum-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f5f5f5; }
+  .order-summary .sum-row .sum-qty { font-weight: 600; flex-shrink: 0; }
+  .order-summary .sum-delivery { font-size: 13px; color: #1b5e20; font-weight: 600; margin-top: 10px; }
+  .order-summary .sum-request { background: #fff8e1; border-radius: 8px; padding: 8px 10px; font-size: 12px; color: #856404; margin-top: 8px; white-space: pre-wrap; word-break: break-word; }
+  .order-summary .screenshot-hint { font-size: 11px; color: #888; margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -127,6 +147,8 @@
         <span class="mode-label">リストで注文 / Order from List</span>
         <span class="mode-sub">Select items from your regular list</span>
       </button>
+      <!-- ← 変更(ステップ2): 注文履歴(控えめなリンク。2大ボタンの動線は変えない) -->
+      <button class="history-link" onclick="showOrderHistory()">📋 注文履歴 / Order History</button>
     </div>
     <button class="back-link" id="backToMode" onclick="backToModeSelect()">↩ Change order method / 注文方法を変える</button>
     <div class="card" id="dateCard"> <!-- ← 変更(リスト注文): id追加(両モードで共用) -->
@@ -170,6 +192,11 @@
       <div class="card" id="listEditCard">
         <h2>2. Select Items / 商品を選択</h2>
         <div id="listItems"></div>
+        <!-- ← 変更(ステップ2): 自由記入欄(任意。リストにない商品のリクエスト) -->
+        <div class="free-request">
+          <label for="freeRequestInput">リストにない商品はこちらへ / Items not on your list</label>
+          <textarea id="freeRequestInput" maxlength="500" rows="2" placeholder="例: ホタテ 2lbs"></textarea>
+        </div>
       </div>
       <button class="btn btn-primary" id="reviewBtn" onclick="reviewListOrder()">Review Order / 注文を確認</button>
       <div class="status" id="listStatus">
@@ -184,8 +211,18 @@
           <thead><tr><th>SKU</th><th>Item</th><th style="text-align:right">Qty</th></tr></thead>
           <tbody id="listReviewBody"></tbody>
         </table>
+        <!-- ← 変更(ステップ2): 自由記入の確認表示(記入があるときのみ) -->
+        <div class="review-request" id="listRequestConfirm" style="display:none"></div>
         <button class="btn btn-primary" id="listSubmitBtn" style="margin-top:16px" onclick="submitListOrder()">Submit Order &amp; Create Invoice</button>
         <button class="btn btn-secondary" onclick="backToListEdit()">Back to Edit / 修正する</button>
+      </div>
+    </div>
+    <!-- ← 変更(ステップ2): 注文履歴画面 -->
+    <div id="historySection" style="display:none">
+      <button class="back-link" style="display:block" onclick="closeOrderHistory()">↩ Back / 戻る</button>
+      <div class="card">
+        <h2>📋 注文履歴 / Order History</h2>
+        <div id="historyContent"></div>
       </div>
     </div>
   </div>
@@ -197,6 +234,14 @@
     <p>Your invoice has been created successfully.</p>
     <div class="invoice-num" id="invoiceNum"></div>
     <div id="paidWarning" style="display:none; margin-top:12px; background:#fff8e1; color:#856404; border-radius:8px; padding:10px 14px; font-size:13px; text-align:left;"></div>
+    <!-- ← 変更(ステップ2): 注文サマリー(リスト注文のみ表示。写真注文の完了画面は従来どおり) -->
+    <div class="order-summary" id="orderSummary" style="display:none">
+      <h3>ご注文内容 / Your Order</h3>
+      <div id="orderSummaryItems"></div>
+      <div class="sum-delivery" id="orderSummaryDelivery"></div>
+      <div class="sum-request" id="orderSummaryRequest" style="display:none"></div>
+      <p class="screenshot-hint">📸 この画面をスクリーンショットで保存できます / You can screenshot this for your records</p>
+    </div>
     <p style="margin-top:12px; font-size:13px; color:#888;" id="deliveryInfo"></p>
     <button class="btn btn-secondary" style="margin-top:24px" onclick="location.reload()">Submit Another Order</button>
   </div>
@@ -506,6 +551,15 @@ function reviewListOrder() {
     tr.querySelectorAll('td')[1].textContent = it.name;
     tbody.appendChild(tr);
   });
+  // ← 変更(ステップ2): 自由記入があれば確認画面にも表示(textContentで安全に挿入)
+  const fr = getFreeRequest();
+  const reqBox = document.getElementById('listRequestConfirm');
+  if (fr) {
+    reqBox.textContent = '★リクエスト / Request:\n' + fr;
+    reqBox.style.display = 'block';
+  } else {
+    reqBox.style.display = 'none';
+  }
   document.getElementById('listEditCard').style.display = 'none';
   document.getElementById('reviewBtn').style.display = 'none';
   document.getElementById('dateCard').style.display = 'none';
@@ -537,6 +591,7 @@ async function submitListOrder() {
     qboSystemId: customerInfo.qboSystemId,
     customerPhone: customerInfo.phone,
     orderMethod: 'LIST', // ← サーバー側でOrder History I列に 'LIST' を記録
+    freeRequest: getFreeRequest(), // ← 変更(ステップ2): 自由記入(サーバー側でメール+K列記録。QBOには載らない)
     items: itemsToSubmit
   };
   isSubmitting = true;
@@ -573,6 +628,7 @@ async function submitListOrder() {
     } else {
       paidWarning.style.display = 'none';
     }
+    renderOrderSummary(itemsToSubmit, d, dataToSubmit.freeRequest); // ← 変更(ステップ2): 完了画面に注文サマリー表示
     document.getElementById('main-screen').style.display = 'none';
     document.getElementById('successScreen').style.display = 'block';
     isSubmitting = false;
@@ -582,6 +638,110 @@ async function submitListOrder() {
     btn.disabled = false;
     btn.textContent = 'Submit Order & Create Invoice';
   }
+}
+
+// ===== ← 変更(ステップ2): 自由記入・完了サマリー・注文履歴 =====
+
+// 自由記入欄の値を取得(前後空白を除去し最大500文字。サーバー側でも同じ制限あり)
+function getFreeRequest() {
+  const el = document.getElementById('freeRequestInput');
+  return el ? (el.value || '').trim().slice(0, 500) : '';
+}
+
+// 完了画面に注文サマリーを表示(リスト注文のみ。すべてtextContentで安全に挿入)
+function renderOrderSummary(items, deliveryDateObj, freeRequest) {
+  const box = document.getElementById('orderSummaryItems');
+  box.innerHTML = '';
+  (items || []).forEach(function(it) {
+    const row = document.createElement('div');
+    row.className = 'sum-row';
+    const nameEl = document.createElement('span');
+    nameEl.textContent = it.name;
+    const qtyEl = document.createElement('span');
+    qtyEl.className = 'sum-qty';
+    qtyEl.textContent = '× ' + it.quantity;
+    row.appendChild(nameEl);
+    row.appendChild(qtyEl);
+    box.appendChild(row);
+  });
+  document.getElementById('orderSummaryDelivery').textContent =
+    'Delivery / 配達日: ' + DAYS[deliveryDateObj.getDay()] + ', ' + MONTHS[deliveryDateObj.getMonth()] + ' ' + deliveryDateObj.getDate();
+  const reqEl = document.getElementById('orderSummaryRequest');
+  if (freeRequest) {
+    reqEl.textContent = '★リクエスト / Request:\n' + freeRequest;
+    reqEl.style.display = 'block';
+  } else {
+    reqEl.style.display = 'none';
+  }
+  document.getElementById('orderSummary').style.display = 'block';
+}
+
+// 注文履歴画面を開く(取得失敗してもモード選択には影響しない)
+async function showOrderHistory() {
+  document.getElementById('modeCard').style.display = 'none';
+  document.getElementById('historySection').style.display = 'block';
+  const box = document.getElementById('historyContent');
+  box.innerHTML = '<div class="history-note">Loading... / 読み込み中...</div>';
+  try {
+    const res = await fetch('/api/orderhistory?cid=' + encodeURIComponent(customerInfo.customerId));
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'failed');
+    renderOrderHistory(json.orders || []);
+  } catch (err) {
+    box.innerHTML = '<div class="history-note">履歴を取得できませんでした。あとでもう一度お試しください。<br>Could not load order history. Please try again later.</div>';
+  }
+}
+
+function closeOrderHistory() {
+  document.getElementById('historySection').style.display = 'none';
+  document.getElementById('modeCard').style.display = 'block';
+}
+
+// 配達日ごとにグループ化して表示(新しい順。すべてtextContentで安全に挿入)
+function renderOrderHistory(orders) {
+  const box = document.getElementById('historyContent');
+  box.innerHTML = '';
+  if (!orders || orders.length === 0) {
+    box.innerHTML = '<div class="history-note">まだ注文履歴がありません / No orders yet</div>';
+    return;
+  }
+  const groups = [];
+  const map = {};
+  orders.forEach(function(o) {
+    const key = (o.deliveryDate || '-') + '|' + (o.orderDate || '');
+    if (!map[key]) {
+      map[key] = { deliveryDate: o.deliveryDate || '-', orderDate: o.orderDate || '', items: [] };
+      groups.push(map[key]);
+    }
+    map[key].items.push(o);
+  });
+  groups.forEach(function(g) {
+    const wrap = document.createElement('div');
+    wrap.className = 'history-group';
+    const dateEl = document.createElement('div');
+    dateEl.className = 'hg-date';
+    dateEl.textContent = '🚚 Delivery / 配達日: ' + g.deliveryDate;
+    wrap.appendChild(dateEl);
+    if (g.orderDate) {
+      const orderedEl = document.createElement('div');
+      orderedEl.className = 'hg-ordered';
+      orderedEl.textContent = 'Ordered / 注文日時: ' + g.orderDate;
+      wrap.appendChild(orderedEl);
+    }
+    g.items.forEach(function(it) {
+      const row = document.createElement('div');
+      row.className = 'history-row';
+      const nameEl = document.createElement('span');
+      nameEl.textContent = it.name;
+      const qtyEl = document.createElement('span');
+      qtyEl.className = 'hr-qty';
+      qtyEl.textContent = '× ' + it.quantity;
+      row.appendChild(nameEl);
+      row.appendChild(qtyEl);
+      wrap.appendChild(row);
+    });
+    box.appendChild(wrap);
+  });
 }
 
 // ===== リスト注文用ロジックここまで =====

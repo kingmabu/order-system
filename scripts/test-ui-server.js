@@ -35,6 +35,16 @@ app.post('/api/save-to-sheets', (req, res) => {
   res.json({ success: true, rows: (req.body.data.items || []).length });
 });
 
+// ← 変更(ステップ2): 注文履歴のスタブ(新しい順)
+app.get('/api/orderhistory', (req, res) => res.json({
+  success: true,
+  orders: [
+    { orderDate: '2026/06/10 14:23:45', deliveryDate: '2026/06/12', name: 'Beef Plate Sliced', quantity: '3' },
+    { orderDate: '2026/06/10 14:23:45', deliveryDate: '2026/06/12', name: 'Chicken Back Bone', quantity: '2' },
+    { orderDate: '2026/06/03 09:10:00', deliveryDate: '2026/06/05', name: 'Pork Fat Sakura', quantity: '1' }
+  ]
+}));
+
 app.get('/auth/token', (req, res) => res.json({ accessToken: 'TEST-TOKEN', realmId: 'TEST-REALM' }));
 
 app.post('/api/create-invoice', (req, res) => {
