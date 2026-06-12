@@ -382,16 +382,15 @@ app.post('/api/save-to-sheets', async (req, res) => {
     }).formatToParts(now).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
     const orderDate = `${la.year}/${la.month}/${la.day} ${la.hour}:${la.minute}:${la.second}`;
     const cidText = data.customer_id ? String(data.customer_id).padStart(3, '0') : '';
-    // ← 変更(リスト注文): I列=注文方法フラグ。リスト注文は 'LIST'、写真注文は従来通り空欄
-    //   (手動注文の 'MANUAL' と同じI列を使用。空欄=写真注文の意味)
+    // ← 変更(リスト注文): リスト注文判定フラグ。I列への書き込みはappend後に行番号指定で行う
+    //   (appendをA:Iに広げると列ずれが発生したため、appendは従来のA:H 8列のまま=写真注文と完全同一)
     const isListOrder = data.orderMethod === 'LIST';
-    const methodFlag = isListOrder ? 'LIST' : '';
-    const rows = data.items.map(item => [orderDate, deliveryDate, cidText, data.customer_name, item.sku, item.name, item.quantity, item.note || '', methodFlag]); // ← 変更(リスト注文): I列追加
+    const rows = data.items.map(item => [orderDate, deliveryDate, cidText, data.customer_name, item.sku, item.name, item.quantity, item.note || '']);
 
     // USER_ENTERED で追記（日付が正しく解釈される）
     const appendRes = await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: 'Sheet1!A:I', // ← 変更(リスト注文): I列まで拡張
+      range: 'Sheet1!A:H',
       valueInputOption: 'USER_ENTERED',
       includeValuesInResponse: true,
       resource: { values: rows }
@@ -411,6 +410,29 @@ app.post('/api/save-to-sheets', async (req, res) => {
           valueInputOption: 'RAW',
           resource: { values: cidValues }
         });
+      }
+    }
+
+    // ← 変更(リスト注文): I列(注文方法フラグ)に 'LIST' を書き込む。
+    //   appendには含めず、C列の先頭ゼロ保持と同じ「行番号を特定してRAWで上書き」方式
+    //   (appendをA:Iに広げるとSheets APIのテーブル検出が変わり列ずれが発生したため)
+    if (isListOrder) {
+      try {
+        const updatedRange = appendRes.data.updates.updatedRange; // e.g. "Sheet1!A5:H6"
+        const match = updatedRange.match(/!.*?(\d+):.*?(\d+)$/);
+        if (match) {
+          const startRow = parseInt(match[1]);
+          const endRow   = parseInt(match[2]);
+          const flagValues = Array(endRow - startRow + 1).fill(['LIST']);
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: process.env.GOOGLE_SHEET_ID,
+            range: `Sheet1!I${startRow}:I${endRow}`,
+            valueInputOption: 'RAW',
+            resource: { values: flagValues }
+          });
+        }
+      } catch (flagErr) {
+        console.error('List flag write error:', flagErr.message); // フラグ書込失敗でも注文本体は止めない
       }
     }
 
