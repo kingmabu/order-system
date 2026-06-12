@@ -27,9 +27,22 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // PWA: cid付きでmanifestを要求されたら、start_urlに顧客番号を引き継いで返す
-app.get('/manifest.json', (req, res) => {
+app.get('/manifest.json', async (req, res) => { // ← 変更: 店舗名取得のためasync化
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'manifest.json'), 'utf8'));
   manifest.start_url = req.query.cid ? '/scan?cid=' + encodeURIComponent(req.query.cid) : '/scan';
+  // ← 変更: cidから店舗名を取得してアイコン名に反映（取得失敗時は従来の「CFP注文」のまま）
+  if (req.query.cid) {
+    try {
+      const info = await lookupCustomerByCid(req.query.cid);
+      if (info && info.customerName) {
+        const shortName = [...info.customerName].slice(0, 12).join(''); // ホーム画面用に12文字で切り詰め
+        manifest.name = 'CFP - ' + info.customerName;
+        manifest.short_name = shortName;
+      }
+    } catch (err) {
+      console.error('Manifest customer lookup error:', err.message); // 失敗してもmanifest自体は返す
+    }
+  }
   res.json(manifest);
 });
 
