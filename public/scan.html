@@ -87,6 +87,21 @@
   .error-screen { display: none; text-align: center; padding: 40px 20px; }
   .error-screen h2 { font-size: 20px; font-weight: 700; color: #c62828; margin-bottom: 8px; }
   .error-screen p { font-size: 14px; color: #666; }
+  /* ← 変更(リスト注文): モード選択・リスト注文画面用スタイル */
+  .mode-btn { width: 100%; padding: 22px 16px; border-radius: 16px; border: 2px solid #1D9E75; background: white; cursor: pointer; text-align: center; margin-bottom: 12px; transition: all 0.15s; }
+  .mode-btn:hover { background: #f0faf6; }
+  .mode-btn .mode-icon { font-size: 30px; display: block; margin-bottom: 6px; }
+  .mode-btn .mode-label { font-size: 17px; font-weight: 700; color: #1a1a1a; display: block; }
+  .mode-btn .mode-sub { font-size: 12px; color: #888; display: block; margin-top: 2px; }
+  .back-link { display: none; background: none; border: none; color: #1D9E75; font-size: 13px; font-weight: 600; cursor: pointer; padding: 0 0 10px; }
+  .list-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+  .list-item:last-child { border-bottom: none; }
+  .list-item .item-name { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+  .list-item .item-weight { font-size: 12px; color: #888; margin-top: 2px; }
+  .list-item.has-qty .item-name { color: #0F6E56; }
+  .qty-stepper { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .step-btn { width: 36px; height: 36px; border-radius: 10px; border: 1.5px solid #1D9E75; background: white; color: #1D9E75; font-size: 20px; font-weight: 700; cursor: pointer; line-height: 1; }
+  .step-btn:active { background: #e8f5e9; }
 </style>
 </head>
 <body>
@@ -100,10 +115,25 @@
       <h1>Order Submission</h1>
       <div id="customerTag"></div>
     </div>
-    <div class="card">
+    <!-- ← 変更(リスト注文): モード選択(itemlistが見つかった顧客のみ表示) -->
+    <div id="modeCard" style="display:none">
+      <button class="mode-btn" onclick="chooseMode('photo')">
+        <span class="mode-icon">📷</span>
+        <span class="mode-label">写真で注文 / Order by Photo</span>
+        <span class="mode-sub">Take a photo of your order sheet</span>
+      </button>
+      <button class="mode-btn" onclick="chooseMode('list')">
+        <span class="mode-icon">📝</span>
+        <span class="mode-label">リストで注文 / Order from List</span>
+        <span class="mode-sub">Select items from your regular list</span>
+      </button>
+    </div>
+    <button class="back-link" id="backToMode" onclick="backToModeSelect()">↩ Change order method / 注文方法を変える</button>
+    <div class="card" id="dateCard"> <!-- ← 変更(リスト注文): id追加(両モードで共用) -->
       <h2>1. Select Delivery Date</h2>
       <div class="delivery-grid" id="dateGrid"></div>
     </div>
+    <div id="photoSection"> <!-- ← 変更(リスト注文): 既存の写真フローをラップ(中身は無変更) -->
     <div class="card">
       <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
         <div class="icon">
@@ -134,6 +164,30 @@
       <button class="btn btn-primary" id="submitBtn" style="margin-top:16px" onclick="submitOrder()">Submit Order &amp; Create Invoice</button>
       <button class="btn btn-secondary" onclick="resetPhoto()">Retake Photo</button>
     </div>
+    </div> <!-- ← 変更(リスト注文): photoSection ここまで -->
+    <!-- ← 変更(リスト注文): リスト注文セクション -->
+    <div id="listSection" style="display:none">
+      <div class="card" id="listEditCard">
+        <h2>2. Select Items / 商品を選択</h2>
+        <div id="listItems"></div>
+      </div>
+      <button class="btn btn-primary" id="reviewBtn" onclick="reviewListOrder()">Review Order / 注文を確認</button>
+      <div class="status" id="listStatus">
+        <div class="spinner" id="listSpinner"></div>
+        <span id="listStatusText"></span>
+      </div>
+      <div class="result-card" id="listReviewCard">
+        <h3>Please Confirm Your Order</h3>
+        <div class="delivery-confirm" id="listDeliveryConfirm"></div>
+        <div class="customer-confirm" id="listCustomerConfirm"></div>
+        <table>
+          <thead><tr><th>SKU</th><th>Item</th><th style="text-align:right">Qty</th></tr></thead>
+          <tbody id="listReviewBody"></tbody>
+        </table>
+        <button class="btn btn-primary" id="listSubmitBtn" style="margin-top:16px" onclick="submitListOrder()">Submit Order &amp; Create Invoice</button>
+        <button class="btn btn-secondary" onclick="backToListEdit()">Back to Edit / 修正する</button>
+      </div>
+    </div>
   </div>
   <div class="success-screen" id="successScreen">
     <div class="check">
@@ -151,6 +205,7 @@
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 let selectedFile = null, extractedData = null, selectedDate = null, customerInfo = null, isSubmitting = false;
+let listItems = [], listAvailable = false; // ← 変更(リスト注文): 定番商品リストの状態
 const urlParams = new URLSearchParams(window.location.search);
 const cid = urlParams.get('cid');
 
@@ -171,6 +226,20 @@ async function init() {
     customerInfo = json;
     document.getElementById('customerTag').innerHTML = '<span class="customer-tag">' + json.customerName + '</span>';
     buildDateGrid();
+    // ← 変更(リスト注文): 定番商品リストがあればモード選択を表示(なければ従来の写真フローのみ)
+    try {
+      const listRes = await fetch('/api/itemlist?cid=' + encodeURIComponent(json.customerId));
+      const listJson = await listRes.json();
+      if (listJson.found && listJson.items && listJson.items.length > 0) {
+        listItems = listJson.items.map(function(it) { return { sku: it.sku, name: it.name, weight: it.weight, qty: 0 }; });
+        listAvailable = true;
+        document.getElementById('modeCard').style.display = 'block';
+        document.getElementById('dateCard').style.display = 'none';
+        document.getElementById('photoSection').style.display = 'none';
+      }
+    } catch (listErr) {
+      // リスト取得に失敗しても従来の写真フローはそのまま使える
+    }
   } catch (err) {
     document.getElementById('customerTag').innerHTML = '<span class="no-customer">General Access</span>';
     buildDateGrid();
@@ -337,6 +406,185 @@ async function submitOrder() {
     document.getElementById('submitBtn').textContent = 'Submit Order & Create Invoice';
   }
 }
+
+// ===== ← 変更(リスト注文): ここからリスト注文用ロジック =====
+
+function chooseMode(mode) {
+  document.getElementById('modeCard').style.display = 'none';
+  document.getElementById('dateCard').style.display = 'block';
+  document.getElementById('backToMode').style.display = 'block';
+  if (mode === 'list') {
+    document.getElementById('listSection').style.display = 'block';
+    document.getElementById('photoSection').style.display = 'none';
+    renderListItems();
+  } else {
+    document.getElementById('photoSection').style.display = 'block';
+    document.getElementById('listSection').style.display = 'none';
+  }
+}
+
+function backToModeSelect() {
+  document.getElementById('modeCard').style.display = 'block';
+  document.getElementById('backToMode').style.display = 'none';
+  document.getElementById('dateCard').style.display = 'none';
+  document.getElementById('photoSection').style.display = 'none';
+  document.getElementById('listSection').style.display = 'none';
+}
+
+function weightLabel(w) {
+  if (!w) return '';
+  return /^[\d.]+$/.test(w) ? w + ' lbs' : w;
+}
+
+function renderListItems() {
+  const box = document.getElementById('listItems');
+  box.innerHTML = '';
+  listItems.forEach(function(it, idx) {
+    const row = document.createElement('div');
+    row.className = 'list-item' + (Number(it.qty) > 0 ? ' has-qty' : '');
+    row.id = 'li-' + idx;
+    const wl = weightLabel(it.weight);
+    row.innerHTML =
+      '<div><div class="item-name"></div>' + (wl ? '<div class="item-weight"></div>' : '') + '</div>' +
+      '<div class="qty-stepper">' +
+        '<button class="step-btn" onclick="stepQty(' + idx + ',-1)">−</button>' +
+        '<input class="qty-input" type="number" min="0" value="' + (Number(it.qty) || 0) + '" id="lq-' + idx + '" onchange="listQtyChanged(' + idx + ')" onclick="this.select()">' +
+        '<button class="step-btn" onclick="stepQty(' + idx + ',1)">+</button>' +
+      '</div>';
+    row.querySelector('.item-name').textContent = it.name; // textContentで安全に挿入
+    if (wl) row.querySelector('.item-weight').textContent = wl;
+    box.appendChild(row);
+  });
+}
+
+function stepQty(idx, delta) {
+  const it = listItems[idx];
+  it.qty = Math.max(0, (Number(it.qty) || 0) + delta);
+  document.getElementById('lq-' + idx).value = it.qty;
+  document.getElementById('li-' + idx).classList.toggle('has-qty', it.qty > 0);
+}
+
+function listQtyChanged(idx) {
+  const input = document.getElementById('lq-' + idx);
+  const v = Math.max(0, parseInt(input.value) || 0);
+  listItems[idx].qty = v;
+  input.value = v;
+  document.getElementById('li-' + idx).classList.toggle('has-qty', v > 0);
+}
+
+function showListStatus(type, msg) {
+  const el = document.getElementById('listStatus');
+  el.className = 'status ' + type;
+  el.style.display = 'flex';
+  document.getElementById('listStatusText').textContent = msg;
+  document.getElementById('listSpinner').style.display = type === 'loading' ? 'block' : 'none';
+}
+
+function reviewListOrder() {
+  if (!selectedDate) {
+    showListStatus('error', 'Please select a delivery date. / 配達日を選択してください。');
+    return;
+  }
+  const selected = listItems.filter(function(it) { return Number(it.qty) > 0; });
+  if (selected.length === 0) {
+    showListStatus('error', 'Please enter at least one quantity. / 数量を1つ以上入力してください。');
+    return;
+  }
+  document.getElementById('listStatus').style.display = 'none';
+  const d = new Date(selectedDate + 'T12:00:00');
+  document.getElementById('listDeliveryConfirm').textContent = 'Delivery: ' + DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+  document.getElementById('listCustomerConfirm').textContent = 'Customer: ' + customerInfo.customerName;
+  const tbody = document.getElementById('listReviewBody');
+  tbody.innerHTML = '';
+  selected.forEach(function(it) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><span class="sku-badge"></span></td>' +
+      '<td style="font-size:13px"></td>' +
+      '<td style="text-align:right;font-weight:600">' + Number(it.qty) + '</td>';
+    tr.querySelector('.sku-badge').textContent = it.sku;
+    tr.querySelectorAll('td')[1].textContent = it.name;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('listEditCard').style.display = 'none';
+  document.getElementById('reviewBtn').style.display = 'none';
+  document.getElementById('dateCard').style.display = 'none';
+  document.getElementById('backToMode').style.display = 'none';
+  document.getElementById('listReviewCard').style.display = 'block';
+}
+
+function backToListEdit() {
+  document.getElementById('listReviewCard').style.display = 'none';
+  document.getElementById('listEditCard').style.display = 'block';
+  document.getElementById('reviewBtn').style.display = 'block';
+  document.getElementById('dateCard').style.display = 'block';
+  document.getElementById('backToMode').style.display = 'block';
+  document.getElementById('listStatus').style.display = 'none';
+}
+
+async function submitListOrder() {
+  if (isSubmitting) return;
+  const itemsToSubmit = listItems
+    .filter(function(it) { return Number(it.qty) > 0; })
+    .map(function(it) { return { sku: it.sku, name: it.name, quantity: Number(it.qty), note: '' }; });
+  if (itemsToSubmit.length === 0) {
+    showListStatus('error', 'Please enter at least one quantity. / 数量を1つ以上入力してください。');
+    return;
+  }
+  const dataToSubmit = {
+    customer_id: customerInfo.customerId,
+    customer_name: customerInfo.customerName,
+    qboSystemId: customerInfo.qboSystemId,
+    customerPhone: customerInfo.phone,
+    orderMethod: 'LIST', // ← サーバー側でOrder History I列に 'LIST' を記録
+    items: itemsToSubmit
+  };
+  isSubmitting = true;
+  const btn = document.getElementById('listSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  showListStatus('loading', 'Saving your order...');
+  try {
+    const sheetsRes = await fetch('/api/save-to-sheets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: dataToSubmit, deliveryDate: selectedDate })
+    });
+    const sheetsJson = await sheetsRes.json();
+    if (!sheetsJson.success) throw new Error(sheetsJson.error);
+    showListStatus('loading', 'Creating invoice in QuickBooks...');
+    const tokenRes = await fetch('/auth/token');
+    const tokenJson = await tokenRes.json();
+    if (!tokenJson.accessToken) throw new Error('QBO not connected');
+    const invoiceRes = await fetch('/api/create-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: dataToSubmit, deliveryDate: selectedDate, accessToken: tokenJson.accessToken, realmId: tokenJson.realmId })
+    });
+    const invoiceJson = await invoiceRes.json();
+    if (!invoiceJson.success) throw new Error(invoiceJson.error);
+    const d = new Date(selectedDate + 'T12:00:00');
+    document.getElementById('invoiceNum').textContent = 'Invoice #' + invoiceJson.invoiceNumber;
+    document.getElementById('deliveryInfo').textContent = dataToSubmit.customer_name + ' - Delivery: ' + DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+    const paidWarning = document.getElementById('paidWarning');
+    if (invoiceJson.skippedInvoices && invoiceJson.skippedInvoices.length > 0) {
+      paidWarning.style.display = 'block';
+      paidWarning.textContent = '⚠️ Invoice #' + invoiceJson.skippedInvoices.join(', #') + ' could not be deleted because payment has already been applied. Please update manually in QuickBooks.';
+    } else {
+      paidWarning.style.display = 'none';
+    }
+    document.getElementById('main-screen').style.display = 'none';
+    document.getElementById('successScreen').style.display = 'block';
+    isSubmitting = false;
+  } catch (err) {
+    showListStatus('error', 'Error: ' + err.message);
+    isSubmitting = false;
+    btn.disabled = false;
+    btn.textContent = 'Submit Order & Create Invoice';
+  }
+}
+
+// ===== リスト注文用ロジックここまで =====
 
 function showStatus(type, msg) {
   const el = document.getElementById('status');

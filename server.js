@@ -112,6 +112,24 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer,
   console.log('Alert sent for:', customerName);
 }
 
+// ← 変更(リスト注文): リスト注文の受付アラートメール。既存の sendNoteAlert は変更せず別関数で追加。
+//   件名・本文に「List Order(リスト注文)」と明記し、写真注文と区別できるようにする。
+async function sendListOrderAlert(customerName, deliveryDate, items, phone) {
+  const itemList = (items || [])
+    .map(item => `• ${item.sku} - ${item.name} (Qty: ${item.quantity})`)
+    .join('\n');
+  const phoneLine = phone ? `\nPhone: ${phone}` : '';
+  const now = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', dateStyle: 'medium', timeStyle: 'short' });
+  const mailOptions = {
+    from: process.env.GMAIL_USER,
+    to: process.env.GMAIL_USER,
+    subject: `📝 ${customerName} (List Order)`,
+    text: `Order Method: LIST ORDER (リスト注文)\nCustomer: ${customerName}${phoneLine}\nSubmitted: ${now} (PDT)\nDelivery Date: ${deliveryDate}\n\nItems:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`
+  };
+  await transporter.sendMail(mailOptions);
+  console.log('List order alert sent for:', customerName);
+}
+
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 // PWA: cid付きアクセス時はmanifestリンクにcidを埋め込んだHTMLを返す（iOSのJS書き換えタイミング問題対策）
 app.get('/scan', (req, res) => {
@@ -179,6 +197,68 @@ app.get('/api/customers', async (req, res) => {
   } catch (err) {
     console.error('Customers error:', err.message);
     res.status(500).json({ error: 'Failed to load customers: ' + err.message });
+  }
+});
+
+// ← 変更(リスト注文): 顧客別定番商品リスト(Order Sheetスプレッドシート)のID。
+//   タブ名形式: OS-{cid}-{店舗名} (例: OS-064-Daikoku-Annex)
+const ORDER_ITEMLIST_SHEET_ID = process.env.ORDER_ITEMLIST_SHEET_ID || '15gbPAWhROz0t33tBsnIMXYwlev1WH0vQ4YoqLxilybQ';
+
+// ← 変更(リスト注文): GET /api/itemlist?cid=XXX
+//   Order Sheet から「OS-{cid}-」で始まる有効なタブを探し、商品行(SKU, ITEM NAME, WEIGHT)を返す。
+//   除外: タブ名に "backup" を含む / "Test" で始まる / "OS-000-Template"。
+//   タブが見つからない場合は {found: false} を返す(エラーにしない)。
+app.get('/api/itemlist', async (req, res) => {
+  try {
+    const { cid } = req.query;
+    if (!cid) return res.status(400).json({ error: 'Customer ID is required' });
+    const cid3 = String(cid).trim().padStart(3, '0'); // QR注文と同じ3桁ゼロパディングで照合
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // タブ一覧を取得して対象タブを特定
+    const meta = await sheets.spreadsheets.get({
+      spreadsheetId: ORDER_ITEMLIST_SHEET_ID,
+      fields: 'sheets.properties.title'
+    });
+    const titles = (meta.data.sheets || []).map(s => s.properties.title);
+    const target = titles.find(t =>
+      t.startsWith(`OS-${cid3}-`) &&
+      !/backup/i.test(t) &&
+      !/^Test/i.test(t) &&
+      t !== 'OS-000-Template'
+    );
+    if (!target) {
+      console.log(`[itemlist] cid=${cid3}: no tab found`);
+      return res.json({ found: false });
+    }
+
+    // 対象タブの商品行を取得(ヘッダー行: SKU, ITEM NAME, WEIGHT (lbs), QTY, NOTE)
+    const values = await sheets.spreadsheets.values.get({
+      spreadsheetId: ORDER_ITEMLIST_SHEET_ID,
+      range: `'${target}'!A:C`
+    });
+    const rows = values.data.values || [];
+    const headerIdx = rows.findIndex(r => (r[0] || '').toString().trim().toUpperCase() === 'SKU');
+    if (headerIdx === -1) {
+      console.log(`[itemlist] cid=${cid3}: tab "${target}" has no SKU header row`);
+      return res.json({ found: false });
+    }
+    const items = rows.slice(headerIdx + 1)
+      .filter(r => r[0] && r[0].toString().trim() !== '' && r[1] && r[1].toString().trim() !== '')
+      .map(r => ({
+        sku: r[0].toString().trim(),
+        name: r[1].toString().trim(),
+        weight: (r[2] || '').toString().trim()
+      }));
+    console.log(`[itemlist] cid=${cid3}: tab "${target}" -> ${items.length} items`);
+    res.json({ found: items.length > 0, tab: target, items });
+  } catch (err) {
+    console.error('Itemlist error:', err.message);
+    res.status(500).json({ error: 'Failed to load item list: ' + err.message });
   }
 });
 
@@ -302,12 +382,16 @@ app.post('/api/save-to-sheets', async (req, res) => {
     }).formatToParts(now).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
     const orderDate = `${la.year}/${la.month}/${la.day} ${la.hour}:${la.minute}:${la.second}`;
     const cidText = data.customer_id ? String(data.customer_id).padStart(3, '0') : '';
-    const rows = data.items.map(item => [orderDate, deliveryDate, cidText, data.customer_name, item.sku, item.name, item.quantity, item.note || '']);
+    // ← 変更(リスト注文): I列=注文方法フラグ。リスト注文は 'LIST'、写真注文は従来通り空欄
+    //   (手動注文の 'MANUAL' と同じI列を使用。空欄=写真注文の意味)
+    const isListOrder = data.orderMethod === 'LIST';
+    const methodFlag = isListOrder ? 'LIST' : '';
+    const rows = data.items.map(item => [orderDate, deliveryDate, cidText, data.customer_name, item.sku, item.name, item.quantity, item.note || '', methodFlag]); // ← 変更(リスト注文): I列追加
 
     // USER_ENTERED で追記（日付が正しく解釈される）
     const appendRes = await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: 'Sheet1!A:H',
+      range: 'Sheet1!A:I', // ← 変更(リスト注文): I列まで拡張
       valueInputOption: 'USER_ENTERED',
       includeValuesInResponse: true,
       resource: { values: rows }
@@ -364,6 +448,12 @@ app.post('/api/save-to-sheets', async (req, res) => {
         stored?.buffer, stored?.mimeType,
         data.customerPhone, data.contact_request, data.replacement_request
       ).catch(err => console.error('Alert error:', err.message));
+    }
+
+    // ← 変更(リスト注文): リスト注文は毎回アラートメールを送信(受付通知)
+    if (isListOrder) {
+      sendListOrderAlert(data.customer_name, deliveryDate, data.items, data.customerPhone)
+        .catch(err => console.error('List alert error:', err.message));
     }
 
     res.json({ success: true, rows: rows.length });
