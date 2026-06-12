@@ -100,7 +100,16 @@ async function sendNoteAlert(customerName, deliveryDate, noteItems, imageBuffer,
 }
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
-app.get('/scan', (req, res) => res.sendFile(path.join(__dirname, 'public', 'scan.html')));
+// PWA: cid付きアクセス時はmanifestリンクにcidを埋め込んだHTMLを返す（iOSのJS書き換えタイミング問題対策）
+app.get('/scan', (req, res) => {
+  let html = fs.readFileSync(path.join(__dirname, 'public', 'scan.html'), 'utf8');
+  const cid = (req.query.cid || '').toString();
+  if (cid) {
+    html = html.replace('href="/manifest.json"', 'href="/manifest.json?cid=' + encodeURIComponent(cid) + '"');
+  }
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(html);
+});
 
 // Client list の A列で cid を照合し、店名(B列)・qboSystemId(D列)・電話を返す共通関数（見つからなければ null）
 async function lookupCustomerByCid(cid) {
