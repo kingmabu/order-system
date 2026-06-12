@@ -441,6 +441,7 @@ async function submitOrder() {
     } else {
       paidWarning.style.display = 'none';
     }
+    renderOrderSummary(itemsToSubmit, d, ''); // ← 変更(ステップ2追補): 写真注文でも完了画面にサマリー表示(撮影写真は端末に残らないため)
     document.getElementById('main-screen').style.display = 'none';
     document.getElementById('successScreen').style.display = 'block';
     isSubmitting = false;
