@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="theme-color" content="#060807">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="CFP注文">
+<meta name="apple-mobile-web-app-title" content="CFP Order">
 <script>
 // QRコードの顧客番号(cid)をホーム画面アプリの起動URLに引き継ぐ
 (function() {
@@ -139,18 +139,18 @@
     <div id="modeCard" style="display:none">
       <button class="mode-btn" onclick="chooseMode('photo')">
         <span class="mode-icon">📷</span>
-        <span class="mode-label">写真で注文 / Order by Photo</span>
+        <span class="mode-label">Order by Photo</span>
         <span class="mode-sub">Take a photo of your order sheet</span>
       </button>
       <button class="mode-btn" onclick="chooseMode('list')">
         <span class="mode-icon">📝</span>
-        <span class="mode-label">リストで注文 / Order from List</span>
+        <span class="mode-label">Order from List</span>
         <span class="mode-sub">Select items from your regular list</span>
       </button>
       <!-- ← 変更(ステップ2): 注文履歴(控えめなリンク。2大ボタンの動線は変えない) -->
-      <button class="history-link" onclick="showOrderHistory()">📋 注文履歴 / Order History</button>
+      <button class="history-link" onclick="showOrderHistory()">📋 Order History</button>
     </div>
-    <button class="back-link" id="backToMode" onclick="backToModeSelect()">↩ Change order method / 注文方法を変える</button>
+    <button class="back-link" id="backToMode" onclick="backToModeSelect()">↩ Change order method</button>
     <div class="card" id="dateCard"> <!-- ← 変更(リスト注文): id追加(両モードで共用) -->
       <h2>1. Select Delivery Date</h2>
       <div class="delivery-grid" id="dateGrid"></div>
@@ -190,15 +190,15 @@
     <!-- ← 変更(リスト注文): リスト注文セクション -->
     <div id="listSection" style="display:none">
       <div class="card" id="listEditCard">
-        <h2>2. Select Items / 商品を選択</h2>
+        <h2>2. Select Items</h2>
         <div id="listItems"></div>
         <!-- ← 変更(ステップ2): 自由記入欄(任意。リストにない商品のリクエスト) -->
         <div class="free-request">
-          <label for="freeRequestInput">リストにない商品はこちらへ / Items not on your list</label>
-          <textarea id="freeRequestInput" maxlength="500" rows="2" placeholder="例: ホタテ 2lbs"></textarea>
+          <label for="freeRequestInput">Items not on your list, or any message</label>
+          <textarea id="freeRequestInput" maxlength="500" rows="2" placeholder="Beef tongue 5lbs / Closed next Monday"></textarea>
         </div>
       </div>
-      <button class="btn btn-primary" id="reviewBtn" onclick="reviewListOrder()">Review Order / 注文を確認</button>
+      <button class="btn btn-primary" id="reviewBtn" onclick="reviewListOrder()">Review Order</button>
       <div class="status" id="listStatus">
         <div class="spinner" id="listSpinner"></div>
         <span id="listStatusText"></span>
@@ -214,14 +214,14 @@
         <!-- ← 変更(ステップ2): 自由記入の確認表示(記入があるときのみ) -->
         <div class="review-request" id="listRequestConfirm" style="display:none"></div>
         <button class="btn btn-primary" id="listSubmitBtn" style="margin-top:16px" onclick="submitListOrder()">Submit Order &amp; Create Invoice</button>
-        <button class="btn btn-secondary" onclick="backToListEdit()">Back to Edit / 修正する</button>
+        <button class="btn btn-secondary" onclick="backToListEdit()">Back to Edit</button>
       </div>
     </div>
     <!-- ← 変更(ステップ2): 注文履歴画面 -->
     <div id="historySection" style="display:none">
-      <button class="back-link" style="display:block" onclick="closeOrderHistory()">↩ Back / 戻る</button>
+      <button class="back-link" style="display:block" onclick="closeOrderHistory()">↩ Back</button>
       <div class="card">
-        <h2>📋 注文履歴 / Order History</h2>
+        <h2>📋 Order History</h2>
         <div id="historyContent"></div>
       </div>
     </div>
@@ -236,11 +236,11 @@
     <div id="paidWarning" style="display:none; margin-top:12px; background:#fff8e1; color:#856404; border-radius:8px; padding:10px 14px; font-size:13px; text-align:left;"></div>
     <!-- ← 変更(ステップ2): 注文サマリー(リスト注文のみ表示。写真注文の完了画面は従来どおり) -->
     <div class="order-summary" id="orderSummary" style="display:none">
-      <h3>ご注文内容 / Your Order</h3>
+      <h3>Your Order</h3>
       <div id="orderSummaryItems"></div>
       <div class="sum-delivery" id="orderSummaryDelivery"></div>
       <div class="sum-request" id="orderSummaryRequest" style="display:none"></div>
-      <p class="screenshot-hint">📸 この画面をスクリーンショットで保存できます / You can screenshot this for your records</p>
+      <p class="screenshot-hint">📸 You can screenshot this for your records</p>
     </div>
     <p style="margin-top:12px; font-size:13px; color:#888;" id="deliveryInfo"></p>
     <button class="btn btn-secondary" style="margin-top:24px" onclick="location.reload()">Submit Another Order</button>
@@ -528,12 +528,12 @@ function showListStatus(type, msg) {
 
 function reviewListOrder() {
   if (!selectedDate) {
-    showListStatus('error', 'Please select a delivery date. / 配達日を選択してください。');
+    showListStatus('error', 'Please select a delivery date.');
     return;
   }
   const selected = listItems.filter(function(it) { return Number(it.qty) > 0; });
   if (selected.length === 0) {
-    showListStatus('error', 'Please enter at least one quantity. / 数量を1つ以上入力してください。');
+    showListStatus('error', 'Please enter at least one quantity.');
     return;
   }
   document.getElementById('listStatus').style.display = 'none';
@@ -556,7 +556,7 @@ function reviewListOrder() {
   const fr = getFreeRequest();
   const reqBox = document.getElementById('listRequestConfirm');
   if (fr) {
-    reqBox.textContent = '★リクエスト / Request:\n' + fr;
+    reqBox.textContent = '★ Request:\n' + fr;
     reqBox.style.display = 'block';
   } else {
     reqBox.style.display = 'none';
@@ -583,7 +583,7 @@ async function submitListOrder() {
     .filter(function(it) { return Number(it.qty) > 0; })
     .map(function(it) { return { sku: it.sku, name: it.name, quantity: Number(it.qty), note: '' }; });
   if (itemsToSubmit.length === 0) {
-    showListStatus('error', 'Please enter at least one quantity. / 数量を1つ以上入力してください。');
+    showListStatus('error', 'Please enter at least one quantity.');
     return;
   }
   const dataToSubmit = {
@@ -666,10 +666,10 @@ function renderOrderSummary(items, deliveryDateObj, freeRequest) {
     box.appendChild(row);
   });
   document.getElementById('orderSummaryDelivery').textContent =
-    'Delivery / 配達日: ' + DAYS[deliveryDateObj.getDay()] + ', ' + MONTHS[deliveryDateObj.getMonth()] + ' ' + deliveryDateObj.getDate();
+    'Delivery: ' + DAYS[deliveryDateObj.getDay()] + ', ' + MONTHS[deliveryDateObj.getMonth()] + ' ' + deliveryDateObj.getDate();
   const reqEl = document.getElementById('orderSummaryRequest');
   if (freeRequest) {
-    reqEl.textContent = '★リクエスト / Request:\n' + freeRequest;
+    reqEl.textContent = '★ Request:\n' + freeRequest;
     reqEl.style.display = 'block';
   } else {
     reqEl.style.display = 'none';
@@ -682,14 +682,14 @@ async function showOrderHistory() {
   document.getElementById('modeCard').style.display = 'none';
   document.getElementById('historySection').style.display = 'block';
   const box = document.getElementById('historyContent');
-  box.innerHTML = '<div class="history-note">Loading... / 読み込み中...</div>';
+  box.innerHTML = '<div class="history-note">Loading...</div>';
   try {
     const res = await fetch('/api/orderhistory?cid=' + encodeURIComponent(customerInfo.customerId));
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'failed');
     renderOrderHistory(json.orders || []);
   } catch (err) {
-    box.innerHTML = '<div class="history-note">履歴を取得できませんでした。あとでもう一度お試しください。<br>Could not load order history. Please try again later.</div>';
+    box.innerHTML = '<div class="history-note">Could not load order history. Please try again later.</div>';
   }
 }
 
@@ -703,7 +703,7 @@ function renderOrderHistory(orders) {
   const box = document.getElementById('historyContent');
   box.innerHTML = '';
   if (!orders || orders.length === 0) {
-    box.innerHTML = '<div class="history-note">まだ注文履歴がありません / No orders yet</div>';
+    box.innerHTML = '<div class="history-note">No orders yet</div>';
     return;
   }
   const groups = [];
@@ -721,12 +721,12 @@ function renderOrderHistory(orders) {
     wrap.className = 'history-group';
     const dateEl = document.createElement('div');
     dateEl.className = 'hg-date';
-    dateEl.textContent = '🚚 Delivery / 配達日: ' + g.deliveryDate;
+    dateEl.textContent = '🚚 Delivery: ' + g.deliveryDate;
     wrap.appendChild(dateEl);
     if (g.orderDate) {
       const orderedEl = document.createElement('div');
       orderedEl.className = 'hg-ordered';
-      orderedEl.textContent = 'Ordered / 注文日時: ' + g.orderDate;
+      orderedEl.textContent = 'Ordered: ' + g.orderDate;
       wrap.appendChild(orderedEl);
     }
     g.items.forEach(function(it) {
