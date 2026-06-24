@@ -251,10 +251,23 @@ const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 let selectedFile = null, extractedData = null, selectedDate = null, customerInfo = null, isSubmitting = false;
 let listItems = [], listAvailable = false; // ← 変更(リスト注文): 定番商品リストの状態
+let holidaySet = new Set(); // ← 変更(土日祝除外): 配達無しの祝日(YYYY-MM-DD)を保持
 const urlParams = new URLSearchParams(window.location.search);
 const cid = urlParams.get('cid');
 
+// ← 変更(土日祝除外): 起動時に配達無しの祝日を取得。失敗しても土日除外は効く
+async function loadHolidays() {
+  try {
+    const res = await fetch('/api/holidays');
+    const json = await res.json();
+    holidaySet = new Set(Array.isArray(json.holidays) ? json.holidays : []);
+  } catch (err) {
+    holidaySet = new Set();
+  }
+}
+
 async function init() {
+  await loadHolidays(); // ← 変更(土日祝除外): グリッド生成前に祝日を読み込む
   if (!cid) {
     document.getElementById('customerTag').innerHTML = '<span class="no-customer">General Access</span>';
     buildDateGrid();
@@ -291,18 +304,32 @@ async function init() {
   }
 }
 
+// ← 変更(土日祝除外): 土曜・日曜・配達無しの祝日をスキップし、営業日10件を表示
+function localYmd(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
 function buildDateGrid() {
   const grid = document.getElementById('dateGrid');
   grid.innerHTML = '';
   const today = new Date();
-  for (let i = 1; i <= 10; i++) {
+  let count = 0, offset = 1;
+  while (count < 10 && offset <= 60) { // offset 上限は無限ループ防止のガード
     const d = new Date(today);
-    d.setDate(today.getDate() + i);
+    d.setDate(today.getDate() + offset);
+    offset++;
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue;          // 日曜・土曜は配達無し
+    if (holidaySet.has(localYmd(d))) continue;      // 配達無しの祝日はスキップ
     const btn = document.createElement('button');
     btn.className = 'date-btn';
     btn.innerHTML = '<span class="dow">' + DAYS[d.getDay()] + '</span><span class="day">' + d.getDate() + '</span><span class="mon">' + MONTHS[d.getMonth()] + '</span>';
     btn.onclick = (function(date, b) { return function() { selectDate(date, b); }; })(d, btn);
     grid.appendChild(btn);
+    count++;
   }
 }
 

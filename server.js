@@ -950,3 +950,59 @@ app.get('/ar/customer-emails', requireArApiKey, async (req, res) => {
     res.status(500).json({ error: 'AR customer-emails failed: ' + JSON.stringify(err.response?.data || err.message) });
   }
 });
+
+// CFP Operations スプレッドシートの Holiday タブ ID（A列=日付, B列=祝日名, C列=配達無しTRUE/FALSE）
+const CFP_OPERATIONS_SHEET_ID = process.env.CFP_OPERATIONS_SHEET_ID || '1m2wm3M0xeoCWE3a4U4e-xvBKMR3j2Wllts7OBjBtv6o';
+
+// シリアル値または日付文字列を YYYY-MM-DD（ローカル）に正規化。失敗時は null
+function normalizeHolidayDate(value) {
+  if (value === null || value === undefined || value === '') return null;
+  let d;
+  if (typeof value === 'number') {
+    // Google Sheets のシリアル日付（基準日 1899-12-30）を UTC で日付化
+    d = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86400000);
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  const s = String(value).trim();
+  // すでに YYYY-MM-DD ならそのまま採用
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+  d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// GET /api/holidays … Holiday タブで C列(配達無し)が TRUE の祝日を YYYY-MM-DD 配列で返す
+app.get('/api/holidays', async (req, res) => {
+  try {
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: CFP_OPERATIONS_SHEET_ID,
+      range: 'Holiday!A:C',
+      valueRenderOption: 'UNFORMATTED_VALUE'
+    });
+    const rows = result.data.values || [];
+    const holidays = [];
+    for (const row of rows) {
+      const noDelivery = row[2] === true || String(row[2] || '').trim().toUpperCase() === 'TRUE';
+      if (!noDelivery) continue;
+      const date = normalizeHolidayDate(row[0]);
+      if (date) holidays.push(date);
+    }
+    console.log(`[Holidays] /api/holidays -> ${holidays.length} no-delivery holidays`);
+    res.json({ holidays });
+  } catch (err) {
+    console.error('Holidays error:', err.response?.data || err.message);
+    res.json({ holidays: [] });
+  }
+});
