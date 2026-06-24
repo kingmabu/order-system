@@ -988,7 +988,7 @@ app.get('/api/holidays', async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth });
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: CFP_OPERATIONS_SHEET_ID,
-      range: 'Holiday!A:C',
+      range: 'Holidays!A:C',
       valueRenderOption: 'UNFORMATTED_VALUE'
     });
     const rows = result.data.values || [];
