@@ -128,7 +128,7 @@ async function sendListOrderAlert(customerName, deliveryDate, items, phone, free
   const mailOptions = {
     from: process.env.GMAIL_USER,
     to: process.env.GMAIL_USER,
-    subject: `📝 ${customerName} (List Order)${freeRequest ? ' ★リクエストあり' : ''}`,
+    subject: `${freeRequest ? '★リクエスト★ ' : ''}${customerName} (List Order)`, // ← 変更
     text: `Order Method: LIST ORDER (リスト注文)\nCustomer: ${customerName}${phoneLine}\nSubmitted: ${now} (PDT)\nDelivery Date: ${deliveryDate}${requestLine}\n\nItems:\n${itemList}\n\n---\nCalifornia Food Product, MY Inc.`
   };
   await transporter.sendMail(mailOptions);
