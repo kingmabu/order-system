@@ -252,6 +252,7 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 let selectedFile = null, extractedData = null, selectedDate = null, customerInfo = null, isSubmitting = false;
 let listItems = [], listAvailable = false; // ← 変更(リスト注文): 定番商品リストの状態
 let holidaySet = new Set(); // ← 変更(土日祝除外): 配達無しの祝日(YYYY-MM-DD)を保持
+let workdaySet = new Set(); // ← 変更(振替営業): 振替営業日(YYYY-MM-DD)。土日でも表示
 const urlParams = new URLSearchParams(window.location.search);
 const cid = urlParams.get('cid');
 
@@ -261,8 +262,10 @@ async function loadHolidays() {
     const res = await fetch('/api/holidays');
     const json = await res.json();
     holidaySet = new Set(Array.isArray(json.holidays) ? json.holidays : []);
+    workdaySet = new Set(Array.isArray(json.workdays) ? json.workdays : []); // ← 変更(振替営業)
   } catch (err) {
     holidaySet = new Set();
+    workdaySet = new Set(); // ← 変更(振替営業)
   }
 }
 
@@ -321,9 +324,13 @@ function buildDateGrid() {
     const d = new Date(today);
     d.setDate(today.getDate() + offset);
     offset++;
+    const ymd = localYmd(d);
     const dow = d.getDay();
-    if (dow === 0 || dow === 6) continue;          // 日曜・土曜は配達無し
-    if (holidaySet.has(localYmd(d))) continue;      // 配達無しの祝日はスキップ
+    // ← 変更(振替営業): 判定順 = 祝日休み → 振替営業 → 土日 → 平日
+    if (holidaySet.has(ymd)) continue;             // 1. 配達無しの祝日はスキップ
+    if (!workdaySet.has(ymd)) {                    // 2. 振替営業日なら土日でも表示
+      if (dow === 0 || dow === 6) continue;        // 3. 振替営業でない土日はスキップ
+    }                                              // 4. それ以外の平日は表示
     const btn = document.createElement('button');
     btn.className = 'date-btn';
     btn.innerHTML = '<span class="dow">' + DAYS[d.getDay()] + '</span><span class="day">' + d.getDate() + '</span><span class="mon">' + MONTHS[d.getMonth()] + '</span>';

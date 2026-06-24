@@ -978,7 +978,9 @@ function normalizeHolidayDate(value) {
   return `${y}-${m}-${day}`;
 }
 
-// GET /api/holidays … Holiday タブで C列(配達無し)が TRUE の祝日を YYYY-MM-DD 配列で返す
+// GET /api/holidays … Holidays タブから2種類返す ← 変更(振替営業)
+//   holidays: C列(配達無し)が TRUE の祝日(YYYY-MM-DD配列)
+//   workdays: D列(振替営業)が TRUE の日付(YYYY-MM-DD配列。土日でも営業)
 app.get('/api/holidays', async (req, res) => {
   try {
     const auth = new google.auth.GoogleAuth({
@@ -988,21 +990,25 @@ app.get('/api/holidays', async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth });
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: CFP_OPERATIONS_SHEET_ID,
-      range: 'Holidays!A:C',
+      range: 'Holidays!A:D', // ← 変更(振替営業): D列(振替営業)まで取得
       valueRenderOption: 'UNFORMATTED_VALUE'
     });
     const rows = result.data.values || [];
     const holidays = [];
-    for (const row of rows) {
-      const noDelivery = row[2] === true || String(row[2] || '').trim().toUpperCase() === 'TRUE';
-      if (!noDelivery) continue;
+    const workdays = []; // ← 変更(振替営業): 振替営業日
+    for (let i = 1; i < rows.length; i++) { // ← 変更(振替営業): 1行目はヘッダーなのでスキップ
+      const row = rows[i];
       const date = normalizeHolidayDate(row[0]);
-      if (date) holidays.push(date);
+      if (!date) continue;
+      const noDelivery = row[2] === true || String(row[2] || '').trim().toUpperCase() === 'TRUE';
+      if (noDelivery) holidays.push(date);
+      const isWorkday = row[3] === true || String(row[3] || '').trim().toUpperCase() === 'TRUE'; // ← 変更(振替営業)
+      if (isWorkday) workdays.push(date);
     }
-    console.log(`[Holidays] /api/holidays -> ${holidays.length} no-delivery holidays`);
-    res.json({ holidays });
+    console.log(`[Holidays] /api/holidays -> ${holidays.length} no-delivery holidays, ${workdays.length} substitute workdays`);
+    res.json({ holidays, workdays });
   } catch (err) {
     console.error('Holidays error:', err.response?.data || err.message);
-    res.json({ holidays: [] });
+    res.json({ holidays: [], workdays: [] }); // ← 変更(振替営業)
   }
 });
