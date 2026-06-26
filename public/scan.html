@@ -87,6 +87,16 @@
   .error-screen { display: none; text-align: center; padding: 40px 20px; }
   .error-screen h2 { font-size: 20px; font-weight: 700; color: #c62828; margin-bottom: 8px; }
   .error-screen p { font-size: 14px; color: #666; }
+  /* ← 変更(取りこぼし対策): 送信失敗の目立つ赤い警告ブロック */
+  .submit-error { display: none; background: #fce8e8; border: 2px solid #c62828; border-radius: 12px; padding: 18px 16px; margin-top: 14px; text-align: center; }
+  .submit-error .se-icon { font-size: 34px; line-height: 1; margin-bottom: 8px; }
+  .submit-error h3 { font-size: 17px; font-weight: 700; color: #c62828; margin-bottom: 6px; }
+  .submit-error p { font-size: 13px; color: #7f1d1d; margin-bottom: 14px; word-break: break-word; white-space: pre-wrap; }
+  .btn-danger { background: #c62828; color: #fff; }
+  .btn-danger:active { background: #a31f1f; }
+  /* ← 変更(取りこぼし対策): 下書き復元の控えめな通知バナー */
+  .draft-note { display: none; align-items: center; gap: 8px; background: #e8f0fe; color: #1a3c87; font-size: 13px; padding: 8px 12px; border-radius: 8px; margin-bottom: 14px; }
+  .draft-note .dn-x { margin-left: auto; background: none; border: none; color: #1a3c87; font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; }
   /* ← 変更(リスト注文): モード選択・リスト注文画面用スタイル */
   .mode-btn { width: 100%; padding: 22px 16px; border-radius: 16px; border: 2px solid #1D9E75; background: white; cursor: pointer; text-align: center; margin-bottom: 12px; transition: all 0.15s; }
   .mode-btn:hover { background: #f0faf6; }
@@ -134,6 +144,11 @@
     <div class="header">
       <h1>Order Submission</h1>
       <div id="customerTag"></div>
+    </div>
+    <!-- ← 変更(取りこぼし対策): 下書き復元の控えめな通知バナー -->
+    <div class="draft-note" id="draftNote">
+      <span>✅ Draft restored</span>
+      <button class="dn-x" onclick="document.getElementById('draftNote').style.display='none'" aria-label="Dismiss">×</button>
     </div>
     <!-- ← 変更(リスト注文): モード選択(itemlistが見つかった顧客のみ表示) -->
     <div id="modeCard" style="display:none">
@@ -195,7 +210,7 @@
         <!-- ← 変更(ステップ2): 自由記入欄(任意。リストにない商品のリクエスト) -->
         <div class="free-request">
           <label for="freeRequestInput">Items not on your list, or any message</label>
-          <textarea id="freeRequestInput" maxlength="500" rows="2" placeholder="Beef tongue 5lbs / Closed next Monday"></textarea>
+          <textarea id="freeRequestInput" maxlength="500" rows="2" placeholder="Beef tongue 5lbs / Closed next Monday" oninput="saveDraft()"></textarea>
         </div>
       </div>
       <button class="btn btn-primary" id="reviewBtn" onclick="reviewListOrder()">Review Order</button>
@@ -225,6 +240,13 @@
         <div id="historyContent"></div>
       </div>
     </div>
+    <!-- ← 変更(取りこぼし対策): 送信失敗の目立つ赤い警告(両モード共用) -->
+    <div class="submit-error" id="submitError">
+      <div class="se-icon">⚠️</div>
+      <h3>Submission failed</h3>
+      <p id="submitErrorMsg"></p>
+      <button class="btn btn-danger" id="retrySubmitBtn" onclick="retrySubmit()">Try Again</button>
+    </div>
   </div>
   <div class="success-screen" id="successScreen">
     <div class="check">
@@ -251,10 +273,104 @@ const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 let selectedFile = null, extractedData = null, selectedDate = null, customerInfo = null, isSubmitting = false;
 let listItems = [], listAvailable = false; // ← 変更(リスト注文): 定番商品リストの状態
+let currentMode = null; // ← 変更(取りこぼし対策): 現在のモード('list'|'photo'|null)。下書き保存・再送信に使用
 let holidaySet = new Set(); // ← 変更(土日祝除外): 配達無しの祝日(YYYY-MM-DD)を保持
 let workdaySet = new Set(); // ← 変更(振替営業): 振替営業日(YYYY-MM-DD)。土日でも表示
 const urlParams = new URLSearchParams(window.location.search);
 const cid = urlParams.get('cid');
+
+// ===== ← 変更(取りこぼし対策): 下書き自動保存(localStorage) =====
+// 顧客ごとのキー。cidが無い(General Access)場合は下書きを使わない
+function draftKey() { return cid ? ('cfp_draft_' + cid) : null; }
+
+// 現在の入力を端末に保存(失敗しても注文操作は止めない)
+function saveDraft() {
+  const key = draftKey();
+  if (!key) return;
+  try {
+    const qtys = {};
+    listItems.forEach(function(it) { if (Number(it.qty) > 0) qtys[it.sku] = Number(it.qty); });
+    const draft = {
+      v: 1,
+      mode: currentMode,            // 'list' | 'photo' | null
+      selectedDate: selectedDate,   // 'YYYY-MM-DD' | null
+      freeRequest: getFreeRequest(),// 写真モードは欄が無いため実質空
+      qtys: qtys                    // リスト注文の数量(SKU→数量)
+    };
+    // 中身が完全に空なら保存しない(古い下書きが残らないよう削除)
+    const empty = !draft.selectedDate && !draft.freeRequest && Object.keys(qtys).length === 0 && !draft.mode;
+    if (empty) { localStorage.removeItem(key); return; }
+    localStorage.setItem(key, JSON.stringify(draft));
+  } catch (e) { /* localStorage不可(プライベートモード等)でも無視 */ }
+}
+
+function loadDraft() {
+  const key = draftKey();
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function clearDraft() {
+  const key = draftKey();
+  if (!key) return;
+  try { localStorage.removeItem(key); } catch (e) { /* 無視 */ }
+}
+
+// 保存した配達日のボタンを選択状態に戻す(日付がまだ表示範囲内のときのみ)
+function selectSavedDate(ymd) {
+  if (!ymd) return false;
+  const btns = document.querySelectorAll('.date-btn');
+  for (let i = 0; i < btns.length; i++) {
+    if (btns[i].getAttribute('data-ymd') === ymd) {
+      document.querySelectorAll('.date-btn').forEach(function(b) { b.classList.remove('selected'); });
+      btns[i].classList.add('selected');
+      selectedDate = ymd;
+      checkReady();
+      return true;
+    }
+  }
+  return false;
+}
+
+// 起動時に下書きがあれば「続きから」復元する
+function restoreDraft() {
+  const draft = loadDraft();
+  if (!draft) return;
+  let restored = false;
+
+  // 自由記入(欄があるリストモードのみ実質有効)
+  if (draft.freeRequest) {
+    const fr = document.getElementById('freeRequestInput');
+    if (fr) { fr.value = draft.freeRequest; restored = true; }
+  }
+  // リスト数量(SKUで突き合わせ)
+  if (draft.qtys && listAvailable) {
+    listItems.forEach(function(it) {
+      if (draft.qtys[it.sku] != null) { it.qty = Number(draft.qtys[it.sku]) || 0; }
+    });
+    if (Object.keys(draft.qtys).length > 0) restored = true;
+  }
+
+  // モード復元: リストありの顧客のみ画面遷移。なければ写真フローのまま
+  if (listAvailable) {
+    let mode = draft.mode;
+    if (!mode && draft.qtys && Object.keys(draft.qtys).length > 0) mode = 'list';
+    if (mode === 'list') { chooseMode('list'); restored = true; }
+    else if (mode === 'photo') { chooseMode('photo'); restored = true; }
+  }
+
+  // 配達日(まだ表示範囲内にある場合のみ復元)
+  if (selectSavedDate(draft.selectedDate)) restored = true;
+
+  if (restored) {
+    const note = document.getElementById('draftNote');
+    if (note) note.style.display = 'flex';
+  }
+}
+// ===== 下書き自動保存ここまで =====
 
 // ← 変更(土日祝除外): 起動時に配達無しの祝日を取得。失敗しても土日除外は効く
 async function loadHolidays() {
@@ -301,6 +417,7 @@ async function init() {
     } catch (listErr) {
       // リスト取得に失敗しても従来の写真フローはそのまま使える
     }
+    restoreDraft(); // ← 変更(取りこぼし対策): 顧客情報・リスト読込後に下書きを復元
   } catch (err) {
     document.getElementById('customerTag').innerHTML = '<span class="no-customer">General Access</span>';
     buildDateGrid();
@@ -333,6 +450,7 @@ function buildDateGrid() {
     }                                              // 4. それ以外の平日は表示
     const btn = document.createElement('button');
     btn.className = 'date-btn';
+    btn.setAttribute('data-ymd', ymd); // ← 変更(取りこぼし対策): 下書き復元時の日付照合用
     btn.innerHTML = '<span class="dow">' + DAYS[d.getDay()] + '</span><span class="day">' + d.getDate() + '</span><span class="mon">' + MONTHS[d.getMonth()] + '</span>';
     btn.onclick = (function(date, b) { return function() { selectDate(date, b); }; })(d, btn);
     grid.appendChild(btn);
@@ -347,6 +465,7 @@ function selectDate(d, btn) {
   const localDate = new Date(d.getTime() - offset * 60 * 1000);
   selectedDate = localDate.toISOString().split('T')[0];
   checkReady();
+  saveDraft(); // ← 変更(取りこぼし対策): 配達日選択を下書き保存
 }
 
 function checkReady() {
@@ -443,6 +562,7 @@ async function submitOrder() {
   const dataToSubmit = Object.assign({}, extractedData, { items: itemsToSubmit });
 
   isSubmitting = true;
+  document.getElementById('submitError').style.display = 'none'; // ← 変更(取りこぼし対策): 前回の失敗警告を消す
   document.getElementById('submitBtn').disabled = true;
   document.getElementById('submitBtn').textContent = 'Processing...';
   showStatus('loading', 'Saving to Google Sheets...');
@@ -475,12 +595,13 @@ async function submitOrder() {
     } else {
       paidWarning.style.display = 'none';
     }
+    clearDraft(); // ← 変更(取りこぼし対策): 送信成功したので下書きを削除
     renderOrderSummary(itemsToSubmit, d, ''); // ← 変更(ステップ2追補): 写真注文でも完了画面にサマリー表示(撮影写真は端末に残らないため)
     document.getElementById('main-screen').style.display = 'none';
     document.getElementById('successScreen').style.display = 'block';
     isSubmitting = false;
   } catch (err) {
-    showStatus('error', 'Error: ' + err.message);
+    showSubmitError('Error: ' + err.message); // ← 変更(取りこぼし対策): 目立つ赤い警告+再送信ボタン
     isSubmitting = false;
     document.getElementById('submitBtn').disabled = false;
     document.getElementById('submitBtn').textContent = 'Submit Order & Create Invoice';
@@ -490,6 +611,7 @@ async function submitOrder() {
 // ===== ← 変更(リスト注文): ここからリスト注文用ロジック =====
 
 function chooseMode(mode) {
+  currentMode = mode; // ← 変更(取りこぼし対策): 現在のモードを記録
   document.getElementById('modeCard').style.display = 'none';
   document.getElementById('dateCard').style.display = 'block';
   document.getElementById('backToMode').style.display = 'block';
@@ -501,14 +623,17 @@ function chooseMode(mode) {
     document.getElementById('photoSection').style.display = 'block';
     document.getElementById('listSection').style.display = 'none';
   }
+  saveDraft(); // ← 変更(取りこぼし対策): モード選択を下書き保存
 }
 
 function backToModeSelect() {
+  currentMode = null; // ← 変更(取りこぼし対策): モード選択に戻ったらモード未確定
   document.getElementById('modeCard').style.display = 'block';
   document.getElementById('backToMode').style.display = 'none';
   document.getElementById('dateCard').style.display = 'none';
   document.getElementById('photoSection').style.display = 'none';
   document.getElementById('listSection').style.display = 'none';
+  saveDraft(); // ← 変更(取りこぼし対策): モード未確定を下書きへ反映
 }
 
 function weightLabel(w) {
@@ -542,6 +667,7 @@ function stepQty(idx, delta) {
   it.qty = Math.max(0, (Number(it.qty) || 0) + delta);
   document.getElementById('lq-' + idx).value = it.qty;
   document.getElementById('li-' + idx).classList.toggle('has-qty', it.qty > 0);
+  saveDraft(); // ← 変更(取りこぼし対策): 数量変更を下書き保存
 }
 
 function listQtyChanged(idx) {
@@ -550,6 +676,7 @@ function listQtyChanged(idx) {
   listItems[idx].qty = v;
   input.value = v;
   document.getElementById('li-' + idx).classList.toggle('has-qty', v > 0);
+  saveDraft(); // ← 変更(取りこぼし対策): 数量変更を下書き保存
 }
 
 function showListStatus(type, msg) {
@@ -630,6 +757,7 @@ async function submitListOrder() {
     items: itemsToSubmit
   };
   isSubmitting = true;
+  document.getElementById('submitError').style.display = 'none'; // ← 変更(取りこぼし対策): 前回の失敗警告を消す
   const btn = document.getElementById('listSubmitBtn');
   btn.disabled = true;
   btn.textContent = 'Processing...';
@@ -663,12 +791,13 @@ async function submitListOrder() {
     } else {
       paidWarning.style.display = 'none';
     }
+    clearDraft(); // ← 変更(取りこぼし対策): 送信成功したので下書きを削除
     renderOrderSummary(itemsToSubmit, d, dataToSubmit.freeRequest); // ← 変更(ステップ2): 完了画面に注文サマリー表示
     document.getElementById('main-screen').style.display = 'none';
     document.getElementById('successScreen').style.display = 'block';
     isSubmitting = false;
   } catch (err) {
-    showListStatus('error', 'Error: ' + err.message);
+    showSubmitError('Error: ' + err.message); // ← 変更(取りこぼし対策): 目立つ赤い警告+再送信ボタン
     isSubmitting = false;
     btn.disabled = false;
     btn.textContent = 'Submit Order & Create Invoice';
@@ -780,6 +909,27 @@ function renderOrderHistory(orders) {
 }
 
 // ===== リスト注文用ロジックここまで =====
+
+// ← 変更(取りこぼし対策): 送信失敗時の目立つ赤い警告を表示(両モード共用)
+function showSubmitError(msg) {
+  // 進行中の小さいステータスバーは隠す
+  document.getElementById('status').style.display = 'none';
+  document.getElementById('listStatus').style.display = 'none';
+  document.getElementById('submitErrorMsg').textContent = msg || 'Please try again.';
+  const box = document.getElementById('submitError');
+  box.style.display = 'block';
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ← 変更(取りこぼし対策): 「もう一度送信」。現在のモードに応じて再送信
+function retrySubmit() {
+  document.getElementById('submitError').style.display = 'none';
+  if (currentMode === 'list') {
+    submitListOrder();
+  } else {
+    submitOrder();
+  }
+}
 
 function showStatus(type, msg) {
   const el = document.getElementById('status');
